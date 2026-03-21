@@ -1,6 +1,6 @@
 {
     'name': 'Insotech Core Licensing Engine',
-    'version': '1.0',
+    'version': '19.0.1.0.0',
     'category': 'Technical Settings',
     'summary': 'Motor base de licenciamiento SaaS para los módulos de Insotech',
     'description': """
