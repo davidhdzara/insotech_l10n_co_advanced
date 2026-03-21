@@ -69,6 +69,38 @@ Y el método `_validate_and_report_license()` que:
 
 ---
 
+## REGLA ARQUITECTÓNICA FUNDAMENTAL: NO DUPLICAR LO NATIVO
+
+> **CRÍTICO:** Odoo 19 (a través de `l10n_co_edi` y `l10n_co_dian`) YA maneja nativamente la configuración completa de la facturación electrónica colombiana. Nuestro módulo **NO DEBE** crear, duplicar ni reemplazar ninguna de estas configuraciones:
+
+| Configuración | ¿Quién lo maneja? | ¿Dónde en Odoo? |
+|---|---|---|
+| Certificado digital `.p12` | Odoo Nativo (`l10n_co_dian`) | Ajustes → Contabilidad → Facturación Electrónica |
+| Software ID, PIN, Test Set ID | Odoo Nativo (`l10n_co_dian`) | Misma sección de Ajustes |
+| Diario de Ventas (Sales Journal) | Odoo Nativo (`account`) | Contabilidad → Configuración → Diarios |
+| Resolución DIAN (prefijo `FE-`, rangos, clave técnica) | Odoo Nativo (`l10n_co_dian`) | Dentro del Diario → pestaña Facturación Electrónica |
+| Generación del XML UBL 2.1 | Odoo Nativo (`l10n_co_dian`) | Motor interno |
+| Firma digital del XML | Odoo Nativo (`l10n_co_dian`) | Usa el `.p12` cargado |
+| Envío al WebService DIAN | Odoo Nativo (`l10n_co_dian`) | Motor interno |
+
+**Nuestro módulo SOLO interviene en UN punto:** el momento en que Odoo asigna el número de la secuencia (`FE-845`) al campo `name` de la factura. Todo lo demás lo deja intacto.
+
+### Qué SÍ debe LEER nuestro módulo de la configuración nativa
+
+Para funcionar correctamente, tu código necesita **detectar y leer** (nunca escribir) la configuración que el contador del cliente ya realizó nativamente en Odoo:
+
+1. **Detectar si el Diario es EDI colombiano:** Investiga en el código fuente de Odoo 19 cómo el módulo `l10n_co_dian` marca un diario (`account.journal`) como habilitado para facturación electrónica. Puede ser un campo booleano, un EDI format vinculado, o un método que verifique si el diario tiene una resolución DIAN configurada. **Solo intervén en diarios que tengan esta marca activa.**
+
+2. **Leer la secuencia (`ir.sequence`) del Diario:** Cada diario de ventas en Odoo tiene un `ir.sequence` asociado que genera los números de factura (ej. con prefijo `FE-` y rango `1-5000` según la resolución DIAN). Tu módulo debe:
+   - **Retener** esa secuencia al confirmar (no consumirla prematuramente).
+   - **Consumirla** solo cuando la DIAN responda `Aceptado`, tomando el `next_by_id()` de esa secuencia para asignar el nombre definitivo.
+
+3. **Leer la resolución DIAN del Diario:** El diario contiene datos de la resolución (número, fecha de vigencia, rango autorizado). Tu módulo NO debe modificar estos datos, pero puede leerlos para validar que el consecutivo asignado esté dentro del rango autorizado.
+
+> **INSTRUCCIÓN DE INVESTIGACIÓN:** Antes de programar, abre el código fuente de Odoo 19 y busca los modelos y campos exactos que `l10n_co_dian` añade a `account.journal` para la resolución DIAN. Los nombres de campos pueden ser diferentes a los de Odoo 18. Documenta en un comentario de cabecera los nombres reales que encontraste.
+
+---
+
 ## TAREAS A IMPLEMENTAR
 
 ### Tarea 2.1 — Estructura del Módulo `insotech_l10n_co_advanced`
@@ -136,17 +168,21 @@ Hereda `account.move` y sobreescribe el flujo de confirmación para que las fact
    - En qué momento exacto Odoo asigna el `name` (número de secuencia) a la factura.
    - Cómo funciona el sistema EDI de Colombia (`l10n_co_dian`) en Odoo 19: qué método envía el XML a la DIAN y cómo se recibe el `ApplicationResponse`.
 
-2. **Implementa la interceptación:**
-   - Cuando se confirma una factura de venta (`move_type in ('out_invoice', 'out_refund')`) cuyo diario está habilitado para EDI colombiano:
+2. **Detecta si el diario es EDI colombiano:**
+   - Investiga cómo `l10n_co_dian` marca los diarios habilitados para facturación electrónica en Odoo 19.
+   - Si el diario de la factura NO está habilitado para EDI colombiano, **NO intervengas**: deja pasar el flujo `super()._post()` completamente normal.
+   - Si el diario SÍ es EDI colombiano, aplica la lógica de protección descrita abajo.
+
+3. **Implementa la interceptación (solo para facturas EDI colombianas):**
+   - Cuando se confirma una factura de venta (`move_type in ('out_invoice', 'out_refund')`) cuyo diario tiene EDI colombiano activo:
      - Asigna un nombre temporal con formato `PRE-INV/%(year)s/%(seq)05d` (ej. `PRE-INV/2026/00001`) usando una `ir.sequence` propia del módulo (deberás crearla en un archivo `data/ir_sequence_data.xml`).
      - Ejecuta el `super()._post()` normalmente para asentar la contabilidad.
-     - **PERO intercepta la asignación del nombre legal** para que NO consuma el `ir.sequence` del diario (el consecutivo de la resolución DIAN).
-   - Para facturas que NO sean EDI colombiano, deja pasar el flujo normalmente sin intervenir.
+     - **PERO intercepta la asignación del nombre legal** para que NO consuma el `ir.sequence` del diario (el de la resolución DIAN con prefijo `FE-`).
 
-3. **Alternativa técnica (elige la mejor):**
+4. **Alternativa técnica (elige la mejor):**
    Si la interceptación de `_post()` resulta demasiado invasiva o frágil en Odoo 19, una alternativa válida es:
    - Dejar que `_post()` funcione normalmente (que asigne el nombre del diario).
-   - Inmediatamente después, **renombrar** el `name` de la factura al temporal `PRE-INV/...` y **devolver** el número al `ir.sequence` (decrementando `number_next_actual`).
+   - Inmediatamente después, **renombrar** el `name` de la factura al temporal `PRE-INV/...` y **devolver** el número al `ir.sequence` del diario (decrementando `number_next_actual`).
    - Documentar claramente si usas este enfoque y por qué.
 
 ---
@@ -155,11 +191,12 @@ Hereda `account.move` y sobreescribe el flujo de confirmación para que las fact
 
 **Archivo:** El mismo `account_move.py`
 
-Cuando el proceso EDI de Odoo envía la factura a la DIAN y recibe un `ApplicationResponse` con estado **Aceptado**:
+Cuando el proceso EDI nativo de Odoo envía la factura a la DIAN y recibe un `ApplicationResponse` con estado **Aceptado**:
 
-1. **Toma el siguiente número** del `ir.sequence` oficial del diario (el que tiene el prefijo de la resolución DIAN, ej. `FE-`).
-2. **Reemplaza** el `name` temporal (`PRE-INV/2026/00001`) por el definitivo (`FE-845`).
-3. **Incrementa** el campo `insotech_usage_count` de `res.company` en +1:
+1. **Identifica la secuencia oficial del diario:** Es el `ir.sequence` que el contador del cliente configuró nativamente en Odoo con el prefijo de la resolución DIAN (ej. `FE-`, los rangos `1-5000`, y la clave técnica). Este `ir.sequence` vive asociado al diario (`account.journal`) de la factura. Investiga cómo obtenerlo en Odoo 19 (puede ser `journal.sequence_id` o un campo similar).
+2. **Consume el número oficial:** Llama a `next_by_id()` (o el método equivalente en Odoo 19) de esa secuencia del diario para obtener el siguiente número legal (ej. `FE-845`).
+3. **Reemplaza** el `name` temporal (`PRE-INV/2026/00001`) por el definitivo (`FE-845`).
+4. **Incrementa** el campo `insotech_usage_count` de `res.company` en +1:
    ```python
    self.company_id.sudo().write({
        'insotech_usage_count': self.company_id.insotech_usage_count + 1
@@ -169,10 +206,12 @@ Cuando el proceso EDI de Odoo envía la factura a la DIAN y recibe un `Applicati
 **Si la DIAN rechaza:**
 - La factura conserva su nombre temporal `PRE-INV/2026/00001`.
 - El error de rechazo se registra en el Chatter de la factura.
-- El usuario puede corregir el error (ej. arreglar el NIT del cliente) y volver a intentar el envío.
-- **NINGÚN consecutivo de la resolución DIAN se ha perdido.**
+- El usuario puede corregir el error (ej. arreglar el NIT del cliente, corregir la dirección, etc.) y volver a intentar el envío.
+- **NINGÚN consecutivo de la resolución DIAN se ha perdido.** La secuencia del diario sigue intacta.
 
-**Investigación necesaria:** Debes encontrar en el código fuente de Odoo 19 el punto exacto donde el módulo `l10n_co_dian` procesa la respuesta de la DIAN. Puede ser un método como `_process_response()`, `_l10n_co_edi_process_response()`, o similar. Herédalo para inyectar la lógica de mutación.
+**Investigación necesaria:** Debes encontrar en el código fuente de Odoo 19:
+- El punto exacto donde `l10n_co_dian` procesa la respuesta de la DIAN. Puede ser un método como `_process_response()`, `_l10n_co_edi_process_response()`, o similar. Herédalo para inyectar la lógica de mutación.
+- Los campos que `l10n_co_dian` añade a `account.journal` para almacenar la resolución DIAN (número de resolución, prefijo, rango de consecutivos, clave técnica, etc.).
 
 ---
 

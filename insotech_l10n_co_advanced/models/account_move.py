@@ -1,3 +1,44 @@
+# -*- coding: utf-8 -*-
+# =============================================================================
+# INVESTIGACIÓN — Odoo 19 Enterprise + l10n_co_dian (2026-03-21)
+#
+# SequenceMixin (account/models/sequence_mixin.py):
+#   - Odoo 19 NO usa ir.sequence para account.move. El name se computa
+#     internamente via _compute_name() + _get_last_sequence().
+#   - _get_last_sequence_domain() determina qué movimientos se consideran
+#     para derivar el patrón de secuencia del diario.
+#   - Nuestro override añade AND name NOT LIKE 'PRE-INV%' para evitar
+#     contaminación del patrón.
+#
+# _post() en Odoo 19:
+#   - El método se llama _post(soft=True), no action_post().
+#   - Asigna el name al confirmar via SequenceMixin._compute_name().
+#   - Nuestro approach: dejar que _post() asigne normalmente, guardar
+#     el nombre original en insotech_reserved_dian_name, luego renombrar
+#     a PRE-INV. Al aceptar DIAN, restaurar desde reserved.
+#
+# l10n_co_dian — Campos en account.move (verificados en staging):
+#   l10n_co_edi_cufe_cude_ref        Char      CUFE/CUDE/CUDS
+#   l10n_co_edi_type                 Selection Tipo de Documento
+#   l10n_co_edi_operation_type       Selection Tipo de operación
+#   l10n_co_edi_transaction          Char      ID de transacción (CO)
+#   l10n_co_edi_attachment_url       Char      URL para Anexos
+#   l10n_co_edi_is_support_document  Boolean   Documento de apoyo
+#   l10n_co_edi_debit_note           Boolean   Nota de Débito
+#   l10n_co_edi_payment_option_id    Many2one  Método de pago
+#
+# l10n_co_dian — Respuesta DIAN via account.edi.document:
+#   state           Selection  Estado (to_send → sent = aceptada)
+#   error           HTML       Mensaje de error DIAN (si rechaza)
+#   move_id         Many2one   Factura vinculada
+#   edi_format_id   Many2one   Formato EDI (DIAN)
+#   edi_format_name Char       Nombre del formato
+#   blocking_level  Selection  Nivel de bloqueo
+#
+# Hook automático: account_edi_document.py hereda account.edi.document
+# y sobreescribe write() para detectar cambios de state/error.
+# =============================================================================
+
 import logging
 
 from markupsafe import Markup
