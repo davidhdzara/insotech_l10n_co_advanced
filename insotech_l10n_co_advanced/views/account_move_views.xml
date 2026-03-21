@@ -66,21 +66,10 @@
                         confirm="¿Está seguro? Esta acción asignará el siguiente consecutivo DIAN disponible a esta factura. Solo use esto si la DIAN aceptó la factura pero el sistema no lo registró automáticamente."/>
             </xpath>
 
-            <!-- DIAN status field in the 'Other Info' tab -->
-            <xpath expr="//page[@name='other_info']//group[@name='accounting_info']" position="inside">
-                <group string="Estado DIAN (Insotech)"
-                       invisible="insotech_dian_status == 'not_applicable'">
-                    <field name="insotech_dian_status"
-                           readonly="1"
-                           widget="badge"
-                           decoration-warning="insotech_dian_status == 'pending'"
-                           decoration-danger="insotech_dian_status == 'rejected'"
-                           decoration-success="insotech_dian_status == 'accepted'"/>
-                    <field name="insotech_pre_inv_name"
-                           readonly="1"
-                           invisible="not insotech_pre_inv_name"/>
-                    <field name="insotech_is_co_edi" invisible="1"/>
-                </group>
+            <!-- Hidden fields (always available for domain evaluation) -->
+            <xpath expr="//sheet" position="inside">
+                <field name="insotech_dian_status" invisible="1"/>
+                <field name="insotech_is_co_edi" invisible="1"/>
             </xpath>
 
         </field>
