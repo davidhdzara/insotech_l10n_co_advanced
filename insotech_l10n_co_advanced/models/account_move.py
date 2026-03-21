@@ -143,9 +143,22 @@ class AccountMove(models.Model):
     def _insotech_check_journal_dian_enabled(self, journal):
         """Check if a journal is enabled for DIAN electronic invoicing.
 
-        This method uses a defensive approach, checking multiple possible
-        field indicators that the l10n_co_dian module may use. This ensures
-        compatibility even if field names change between Odoo versions.
+        Verified in Odoo 19 Enterprise staging (2026-03-21):
+        The key field is l10n_co_dian_provider (Selection) on account.journal.
+        When this field has a value, the journal is configured for DIAN EDI.
+
+        Additionally, l10n_co_edi_dian_authorization_number contains the
+        resolution number — if present, the journal has a valid DIAN
+        resolution configured.
+
+        Fields on account.journal (l10n_co_dian):
+          l10n_co_dian_provider                  Selection  Proveedor DIAN
+          l10n_co_dian_technical_key              Char       Clave técnica
+          l10n_co_edi_dian_authorization_number   Char       Resolución
+          l10n_co_edi_dian_authorization_date     Date       Fecha resolución
+          l10n_co_edi_dian_authorization_end_date Date       Fecha fin
+          l10n_co_edi_min_range_number            Integer    Número inicial
+          l10n_co_edi_max_range_number            Integer    Número final
 
         :param journal: account.journal recordset
         :returns: True if DIAN EDI is enabled for this journal
@@ -153,47 +166,33 @@ class AccountMove(models.Model):
         if not journal:
             return False
 
-        # Possible field names used by l10n_co_dian to mark a journal
-        # as DIAN-enabled. We check all known possibilities.
-        dian_field_candidates = [
-            'l10n_co_dian_enabled',          # Direct DIAN flag
-            'l10n_co_edi_is_direct_sending',  # Direct sending to DIAN
-            'l10n_co_edi_dian_env',           # DIAN environment config
-        ]
+        # Primary check: l10n_co_dian_provider is the field Odoo 19 uses
+        # to mark a journal as DIAN-enabled (Selection field)
+        if hasattr(journal, 'l10n_co_dian_provider'):
+            if journal.l10n_co_dian_provider:
+                _logger.debug(
+                    "Insotech: Journal '%s' is DIAN-enabled "
+                    "(l10n_co_dian_provider = '%s')",
+                    journal.name, journal.l10n_co_dian_provider
+                )
+                return True
 
-        for field_name in dian_field_candidates:
-            if hasattr(journal, field_name):
-                value = getattr(journal, field_name)
-                if value:
-                    _logger.debug(
-                        "Insotech: Journal '%s' detected as DIAN-enabled "
-                        "via field '%s'", journal.name, field_name
-                    )
-                    return True
+        # Secondary check: journal has a DIAN resolution number configured
+        if hasattr(journal, 'l10n_co_edi_dian_authorization_number'):
+            if journal.l10n_co_edi_dian_authorization_number:
+                _logger.debug(
+                    "Insotech: Journal '%s' has DIAN resolution '%s'",
+                    journal.name,
+                    journal.l10n_co_edi_dian_authorization_number
+                )
+                return True
 
-        # Fallback: Check if the journal has any EDI format related to
-        # Colombian DIAN configured (works with edi.format if available)
-        if hasattr(journal, 'edi_format_ids'):
-            for edi_format in journal.edi_format_ids:
-                if 'co_dian' in (edi_format.code or '').lower() or \
-                        'l10n_co' in (edi_format.code or '').lower():
-                    _logger.debug(
-                        "Insotech: Journal '%s' detected as DIAN-enabled "
-                        "via edi_format '%s'", journal.name, edi_format.code
-                    )
-                    return True
-
-        # Final fallback: if company is CO and journal type is 'sale',
-        # assume it's DIAN-enabled (conservative — can be refined after
-        # first deploy)
-        if journal.type == 'sale' and \
-                journal.company_id.country_id.code == 'CO':
-            _logger.debug(
-                "Insotech: Journal '%s' assumed as DIAN-enabled "
-                "(CO sale journal fallback)", journal.name
-            )
-            return True
-
+        # No DIAN configuration found — do NOT intervene
+        _logger.debug(
+            "Insotech: Journal '%s' has NO DIAN configuration. "
+            "Skipping PRE-INV protection.",
+            journal.name
+        )
         return False
 
     def _insotech_get_pre_inv_name(self):
