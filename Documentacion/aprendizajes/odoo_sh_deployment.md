@@ -140,12 +140,60 @@ insotech/ (staging_produccion)
 
 ## Estructura del Repo del Producto
 ```
-insotech_l10n_co_advanced/ (master)
+insotech_l10n_co_advanced/ (19.0)
 ├── insotech_core/          ← Motor de licenciamiento
+├── insotech_l10n_co_advanced/ ← Localización avanzada Colombia
 ├── Documentacion/          ← Documentación técnica
-│   └── insotech_core/
+│   ├── insotech_core/
+│   │   ├── README.md
+│   │   ├── GUIA_DESPLIEGUE.md
+│   │   └── CHANGELOG.md
+│   └── insotech_l10n_co_advanced/
 │       ├── README.md
-│       ├── GUIA_DESPLIEGUE.md
 │       └── CHANGELOG.md
 └── README.md
 ```
+
+---
+
+## Repos Multi-Módulo y Submódulos en Odoo.sh
+
+### Problema de Profundidad
+Si un repo tiene estructura `repo/modulo/__manifest__.py` y se agrega como submódulo, la ruta en Odoo.sh queda:
+```
+src/user/nombre_submodulo/modulo/__manifest__.py  ← 2 niveles, NO descubierto
+```
+
+### Solución Probada
+Para repos con múltiples módulos, **copiar cada módulo directamente** en la raíz del repo principal de Odoo.sh:
+```bash
+cp -r /path/repo_producto/modulo_a /path/repo_odoosh/modulo_a
+cp -r /path/repo_producto/modulo_b /path/repo_odoosh/modulo_b
+```
+
+Resultado en Odoo.sh:
+```
+src/user/modulo_a/__manifest__.py  ← hijo directo ✅
+src/user/modulo_b/__manifest__.py  ← hijo directo ✅
+```
+
+---
+
+## XPaths en Vistas de account.move (Odoo 19)
+
+### XPaths que SÍ funcionan
+```xml
+<!-- Siempre existen en account.move form -->
+<xpath expr="//header" position="inside">     ← Botones
+<xpath expr="//header" position="after">      ← Banners
+<xpath expr="//sheet" position="inside">      ← Campos ocultos
+```
+
+### XPaths que NO funcionan en Odoo 19
+```xml
+<!-- ❌ No existe: -->
+<xpath expr="//page[@name='other_info']//group[@name='accounting_info']">
+```
+
+> **Regla**: Antes de usar xpaths específicos con `@name`, verificar en modo desarrollador que el elemento exista en la vista real de Odoo 19.
+
