@@ -25,7 +25,7 @@ Extends Odoo 18 native l10n_co_dian module to enforce the following:
         'views/account_journal_views.xml',
         'data/ir_cron_data.xml',
     ],
-    'installable': True,
+    'installable': False,
     'auto_install': False,
     'application': False,
 }
