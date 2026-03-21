@@ -11,6 +11,13 @@
         <field name="priority">100</field>
         <field name="arch" type="xml">
 
+            <!-- Declare fields first so they are available for domain eval -->
+            <xpath expr="//header" position="before">
+                <field name="insotech_dian_status" invisible="1"/>
+                <field name="insotech_is_co_edi" invisible="1"/>
+                <field name="insotech_reserved_dian_name" invisible="1"/>
+            </xpath>
+
             <!-- Banner: Pending DIAN validation -->
             <xpath expr="//header" position="after">
                 <div class="alert alert-warning text-center mb-0"
@@ -64,12 +71,6 @@
                         invisible="insotech_dian_status not in ('pending', 'rejected')"
                         groups="account.group_account_manager"
                         confirm="¿Está seguro? Esta acción asignará el siguiente consecutivo DIAN disponible a esta factura. Solo use esto si la DIAN aceptó la factura pero el sistema no lo registró automáticamente."/>
-            </xpath>
-
-            <!-- Hidden fields (always available for domain evaluation) -->
-            <xpath expr="//sheet" position="inside">
-                <field name="insotech_dian_status" invisible="1"/>
-                <field name="insotech_is_co_edi" invisible="1"/>
             </xpath>
 
         </field>

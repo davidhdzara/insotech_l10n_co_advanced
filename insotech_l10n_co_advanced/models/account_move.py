@@ -45,6 +45,14 @@ class AccountMove(models.Model):
              "de validación por la DIAN."
     )
 
+    insotech_reserved_dian_name = fields.Char(
+        string="Nombre DIAN Reservado",
+        copy=False,
+        readonly=True,
+        help="Nombre legal de la resolución DIAN asignado por Odoo al "
+             "confirmar. Se restaura cuando la DIAN acepta la factura."
+    )
+
     insotech_is_co_edi = fields.Boolean(
         string="Es Factura EDI Colombiana",
         compute='_compute_insotech_is_co_edi',
@@ -154,53 +162,10 @@ class AccountMove(models.Model):
         return self.env['ir.sequence'].next_by_code('insotech.pre.inv') \
             or 'PRE-INV/0000'
 
-    def _insotech_get_next_dian_name(self):
-        """Get the next legal DIAN number from the journal's sequence.
-
-        In Odoo 19, account.move uses SequenceMixin which computes the
-        name based on the pattern of existing moves in the journal. We
-        leverage the journal's sequence logic to get the next legal name.
-
-        :returns: string with the next legal invoice name
-        """
-        self.ensure_one()
-        journal = self.journal_id
-
-        # Use the journal's native _get_next_sequence method if available
-        # (this is how Odoo's SequenceMixin works internally)
-        if hasattr(self, '_get_last_sequence') and \
-                hasattr(self, '_get_starting_sequence'):
-            # Get the last posted sequence in this journal with the
-            # journal's pattern (not PRE-INV)
-            last_seq = self._get_last_sequence(
-                relaxed=False,
-                with_prefix=journal.code,
-            )
-            if last_seq:
-                # Extract and increment the number
-                import re
-                numbers = re.findall(r'\d+', last_seq)
-                if numbers:
-                    last_number = int(numbers[-1])
-                    next_number = last_number + 1
-                    # Replace the last number in the sequence
-                    new_name = re.sub(
-                        r'\d+(?!.*\d)',
-                        str(next_number),
-                        last_seq
-                    )
-                    return new_name
-
-        # Fallback: Use ir.sequence on the journal if available
-        if hasattr(journal, 'sequence_id') and journal.sequence_id:
-            return journal.sequence_id.next_by_id()
-
-        _logger.warning(
-            "Insotech: Could not determine next DIAN name for move %s "
-            "in journal %s. Falling back to current name.",
-            self.id, journal.name
-        )
-        return self.name
+    # NOTE: _insotech_get_next_dian_name() was removed.
+    # Instead, we store the original name assigned by _post() in
+    # insotech_reserved_dian_name and restore it on DIAN acceptance.
+    # This is more reliable than trying to recompute the sequence.
 
     # -------------------------------------------------------------------------
     # OVERRIDDEN METHODS — Sequence Protection
@@ -229,6 +194,8 @@ class AccountMove(models.Model):
                     # 1. Save the assigned name (for potential future use)
                     # 2. Replace with PRE-INV temporary name
                     # 3. Mark as pending DIAN validation
+                    # Store the original name assigned by _post()
+                    # This is the DIAN resolution number that Odoo consumed
                     original_name = move.name
                     pre_inv_name = move._insotech_get_pre_inv_name()
 
@@ -238,14 +205,14 @@ class AccountMove(models.Model):
                         move.id, original_name, pre_inv_name
                     )
 
-                    # Write the temporary name and status
-                    # Use sudo + SQL-safe write to bypass SequenceMixin
-                    # constraints on the name field
+                    # Write the temporary name, store the reserved DIAN
+                    # name, and set status to pending
                     move.with_context(
                         skip_account_move_synchronization=True
                     ).write({
                         'name': pre_inv_name,
                         'insotech_pre_inv_name': pre_inv_name,
+                        'insotech_reserved_dian_name': original_name,
                         'insotech_dian_status': 'pending',
                     })
 
@@ -298,8 +265,14 @@ class AccountMove(models.Model):
                 continue
 
             try:
-                # Get the next legal DIAN name
-                legal_name = move._insotech_get_next_dian_name()
+                # Restore the reserved DIAN name
+                legal_name = move.insotech_reserved_dian_name
+                if not legal_name:
+                    raise UserError(_(
+                        "No se encontró el nombre DIAN reservado para "
+                        "la factura %s. Contacte a soporte técnico.",
+                        move.name
+                    ))
 
                 old_name = move.name
 
