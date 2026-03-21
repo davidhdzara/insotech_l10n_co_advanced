@@ -9,6 +9,7 @@
     'author': 'Insotech',
     'depends': ['base', 'web'],
     'data': [
+        'security/ir.model.access.csv',
         'views/res_config_settings_views.xml',
     ],
     'installable': True,
