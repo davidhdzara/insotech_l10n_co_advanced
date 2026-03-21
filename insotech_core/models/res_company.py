@@ -1,5 +1,6 @@
 import logging
 import requests
+from datetime import timedelta
 from odoo import models, fields
 
 _logger = logging.getLogger(__name__)
@@ -8,8 +9,10 @@ class ResCompany(models.Model):
     _inherit = 'res.company'
 
     insotech_license_token = fields.Char(string="Token de Licencia Insotech")
+    insotech_usage_count = fields.Integer(string="Contador de Uso Insotech", default=0, copy=False)
+    insotech_last_successful_ping = fields.Datetime(string="Último Ping Exitoso Insotech", copy=False)
 
-    def _validate_insotech_license(self):
+    def _validate_and_report_license(self):
         self.ensure_one()
 
         token = self.insotech_license_token
@@ -22,30 +25,59 @@ class ResCompany(models.Model):
         payload = {
             'token': token,
             'vat': vat,
-            'url': url
+            'url': url,
+            'usage_count': self.insotech_usage_count,
+            'reset_counter': True,
         }
+
+        def _check_grace_period():
+            if self.insotech_last_successful_ping:
+                limit_date = fields.Datetime.now() - timedelta(hours=72)
+                if self.insotech_last_successful_ping >= limit_date:
+                    _logger.warning("Insotech: Operando bajo período de gracia (último ping: %s)", self.insotech_last_successful_ping)
+                    return True
+            _logger.error("Insotech: Período de gracia expirado o nulo.")
+            return False
 
         try:
             response = requests.post(
                 'https://www.insotech.it/insotech/api/v1/verify',
                 json=payload,
-                timeout=3
+                timeout=4
             )
+            
             if response.status_code == 200:
                 try:
                     data = response.json()
-                    if data.get('status') == 'active':
+                    status = data.get('status')
+                    if status == 'active':
+                        self.sudo().write({
+                            'insotech_usage_count': 0,
+                            'insotech_last_successful_ping': fields.Datetime.now()
+                        })
                         return True
+                    elif status in ['blocked', 'exhausted']:
+                        _logger.error("Insotech: Licencia rechazada por la API (status: %s)", status)
+                        return False
+                    else:
+                        _logger.warning("Insotech: Status desconocido '%s'. Evaluando gracia.", status)
+                        return _check_grace_period()
                 except ValueError:
-                    _logger.warning("Respuesta no válida de la API de Insotech (JSON inválido).")
+                    _logger.warning("Insotech: Respuesta no válida (JSON inválido).")
+                    return _check_grace_period()
+            else:
+                _logger.warning("Insotech: API respondió con código %s", response.status_code)
+                return _check_grace_period()
+                
         except requests.exceptions.Timeout:
-            _logger.warning("Timeout al validar la licencia de Insotech.")
+            _logger.warning("Insotech: Timeout de 4s al validar la licencia.")
+            return _check_grace_period()
         except requests.exceptions.RequestException as e:
-            _logger.warning("Error de red al validar la licencia de Insotech: %s", e)
+            _logger.warning("Insotech: Error de red al validar la licencia: %s", e)
+            return _check_grace_period()
         except Exception as e:
-            _logger.warning("Error inesperado al validar la licencia de Insotech: %s", e)
-
-        return False
+            _logger.warning("Insotech: Error inesperado al validar la licencia: %s", e)
+            return _check_grace_period()
 
 class ResConfigSettings(models.TransientModel):
     _inherit = 'res.config.settings'
