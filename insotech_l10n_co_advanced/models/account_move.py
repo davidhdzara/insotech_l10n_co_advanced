@@ -1,5 +1,6 @@
 import logging
 
+from markupsafe import Markup
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
@@ -168,6 +169,28 @@ class AccountMove(models.Model):
     # This is more reliable than trying to recompute the sequence.
 
     # -------------------------------------------------------------------------
+    # SEQUENCEMIXIN PROTECTION — Prevent PRE-INV from corrupting sequences
+    # -------------------------------------------------------------------------
+
+    def _get_last_sequence_domain(self, relaxed=False):
+        """Override to exclude PRE-INV temporary names from sequence search.
+
+        Odoo 19's SequenceMixin uses _get_last_sequence_domain() to find
+        the last posted name in the journal and derive the sequence pattern.
+        If PRE-INV names are included, the SequenceMixin thinks the journal
+        pattern is 'PRE-INV/YYYY/NNNNN' and generates more PRE-INV names
+        instead of the real journal sequence (e.g. INV/2026/XXXX).
+
+        This override adds a filter to exclude PRE-INV names from the
+        sequence domain, ensuring the SequenceMixin always uses the
+        real journal sequence pattern.
+        """
+        where_string, param = super()._get_last_sequence_domain(relaxed)
+        # Exclude PRE-INV temporary names from the sequence search
+        where_string += " AND name NOT LIKE 'PRE-INV%%'"
+        return where_string, param
+
+    # -------------------------------------------------------------------------
     # OVERRIDDEN METHODS — Sequence Protection
     # -------------------------------------------------------------------------
 
@@ -218,13 +241,12 @@ class AccountMove(models.Model):
 
                     # Log in chatter
                     move.message_post(
-                        body=_(
-                            "🔒 <b>Protección de consecutivo DIAN activada</b>"
-                            "<br/>Nombre temporal asignado: <b>%s</b>"
-                            "<br/>El número definitivo de la resolución DIAN "
-                            "se asignará tras la aceptación electrónica.",
-                            pre_inv_name
-                        ),
+                        body=Markup(
+                            '🔒 <b>Protección de consecutivo DIAN activada</b>'
+                            '<br/>Nombre temporal: <b>%s</b>'
+                            '<br/>El número definitivo se asignará tras '
+                            'la aceptación electrónica.'
+                        ) % pre_inv_name,
                         message_type='notification',
                         subtype_xmlid='mail.mt_note',
                     )
@@ -299,14 +321,11 @@ class AccountMove(models.Model):
 
                 # Log in chatter
                 move.message_post(
-                    body=_(
-                        "✅ <b>Factura aceptada por la DIAN</b>"
-                        "<br/>Número temporal: <b>%s</b>"
-                        "<br/>Número definitivo asignado: <b>%s</b>"
-                        "<br/>El consecutivo de la resolución DIAN ha "
-                        "sido asignado exitosamente.",
-                        old_name, legal_name
-                    ),
+                    body=Markup(
+                        '✅ <b>Factura aceptada por la DIAN</b>'
+                        '<br/>Nombre temporal: %s'
+                        '<br/>Número definitivo: <b>%s</b>'
+                    ) % (old_name, legal_name),
                     message_type='notification',
                     subtype_xmlid='mail.mt_note',
                 )
@@ -352,19 +371,15 @@ class AccountMove(models.Model):
                 'insotech_dian_status': 'rejected',
             })
 
-            # Log details in chatter
+            # Log in chatter
             move.message_post(
-                body=_(
-                    "❌ <b>Factura rechazada por la DIAN</b>"
-                    "<br/>Nombre temporal conservado: <b>%s</b>"
-                    "<br/><b>Motivo del rechazo:</b> %s"
-                    "<br/><br/>📝 Corrija el error y use el botón "
-                    "<i>'Reintentar Envío DIAN'</i> para volver a enviar. "
-                    "<b>No se ha perdido ningún consecutivo</b> de la "
-                    "resolución DIAN.",
-                    move.name,
-                    error_message or _("No se recibió detalle del error.")
-                ),
+                body=Markup(
+                    '❌ <b>Factura rechazada por la DIAN</b>'
+                    '<br/>Nombre temporal conservado: <b>%s</b>'
+                    '<br/><b>Motivo:</b> %s'
+                    '<br/>Corrija el error y use '
+                    '<i>"Reintentar Envío DIAN"</i>.'
+                ) % (move.name, error_message or 'Sin detalle'),
                 message_type='notification',
                 subtype_xmlid='mail.mt_note',
             )
@@ -486,13 +501,11 @@ class AccountMove(models.Model):
             })
 
             move.message_post(
-                body=_(
-                    "🔄 <b>Reintento de envío a la DIAN</b>"
-                    "<br/>El usuario ha iniciado un reintento de envío. "
-                    "La factura será reenviada con el nombre temporal "
-                    "<b>%s</b>.",
-                    move.name
-                ),
+                body=Markup(
+                    '🔄 <b>Reintento de envío a la DIAN</b>'
+                    '<br/>La factura será reenviada con nombre '
+                    'temporal <b>%s</b>.'
+                ) % move.name,
                 message_type='notification',
                 subtype_xmlid='mail.mt_note',
             )
