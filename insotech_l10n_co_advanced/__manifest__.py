@@ -13,7 +13,6 @@
         - Protección total contra pérdida de consecutivos
         - Validación de licencia SaaS antes del envío a la DIAN
         - Banners informativos de estado DIAN en la factura
-        - Wizard de configuración express DIAN
         - Contador visual de resolución DIAN
     """,
     'author': 'Insotech',
@@ -23,11 +22,10 @@
         'l10n_co_edi',
         'l10n_co_dian',
         'insotech_core',
+        'insotech_dian_wizard',
     ],
     'data': [
-        'security/ir.model.access.csv',
         'data/ir_sequence_data.xml',
-        'views/dian_setup_wizard_views.xml',
         'views/account_move_views.xml',
     ],
     'installable': True,
