@@ -442,6 +442,20 @@ class AccountMove(models.Model):
                 continue
 
             company = move.company_id
+            # DEV MODE: bypass license validation for testing
+            # Set ir.config_parameter 'insotech.dev_mode' = '1' to enable
+            # Remove this parameter in production!
+            dev_mode = self.env['ir.config_parameter'].sudo().get_param(
+                'insotech.dev_mode', '0'
+            )
+            if dev_mode == '1':
+                _logger.warning(
+                    "Insotech: DEV MODE activo — validación de licencia "
+                    "deshabilitada para move %s. ¡Desactivar en producción!",
+                    move.id
+                )
+                continue
+
             try:
                 if not company._validate_and_report_license():
                     raise UserError(_(
