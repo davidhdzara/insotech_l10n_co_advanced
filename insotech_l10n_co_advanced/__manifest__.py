@@ -1,6 +1,6 @@
 {
     'name': 'Insotech — Localización Colombiana Avanzada',
-    'version': '19.0.1.0.0',
+    'version': '19.0.1.1.0',
     'category': 'Accounting/Localizations',
     'summary': 'Protección de consecutivos DIAN y facturación electrónica segura para Colombia',
     'description': """
@@ -13,6 +13,8 @@
         - Protección total contra pérdida de consecutivos
         - Validación de licencia SaaS antes del envío a la DIAN
         - Banners informativos de estado DIAN en la factura
+        - Wizard de configuración express DIAN
+        - Contador visual de resolución DIAN
     """,
     'author': 'Insotech',
     'website': 'https://www.insotech.it',
@@ -25,6 +27,7 @@
     'data': [
         'security/ir.model.access.csv',
         'data/ir_sequence_data.xml',
+        'views/dian_setup_wizard_views.xml',
         'views/account_move_views.xml',
     ],
     'installable': True,
@@ -32,3 +35,4 @@
     'auto_install': False,
     'license': 'OPL-1',
 }
+

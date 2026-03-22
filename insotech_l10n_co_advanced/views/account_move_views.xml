@@ -16,6 +16,11 @@
                 <field name="insotech_dian_status" invisible="1"/>
                 <field name="insotech_is_co_edi" invisible="1"/>
                 <field name="insotech_reserved_dian_name" invisible="1"/>
+                <field name="insotech_resolution_used" invisible="1"/>
+                <field name="insotech_resolution_max" invisible="1"/>
+                <field name="insotech_resolution_percent" invisible="1"/>
+                <field name="insotech_resolution_color" invisible="1"/>
+                <field name="insotech_resolution_progress_width" invisible="1"/>
             </xpath>
 
             <!-- Banner: Pending DIAN validation -->
@@ -47,6 +52,78 @@
                     Corrija el error indicado en el historial (chatter)
                     y use el botón <b>"Reintentar Envío DIAN"</b>.
                     No se ha perdido ningún consecutivo de la resolución.
+                </div>
+            </xpath>
+
+            <!-- ============================================================ -->
+            <!-- Resolution Counter — Visual indicator (badge + color dot)    -->
+            <!-- ============================================================ -->
+            <xpath expr="//header" position="after">
+                <div class="d-flex align-items-center gap-2 px-3 py-2
+                            border-bottom bg-view"
+                     invisible="not insotech_is_co_edi or insotech_resolution_max == 0">
+
+                    <span class="text-muted small fw-bold">
+                        <i class="fa fa-file-text-o me-1"/>Resolución DIAN:
+                    </span>
+
+                    <!-- Color dot indicator — Green -->
+                    <i class="fa fa-circle text-success small"
+                       invisible="insotech_resolution_color != 'success'"
+                       title="Más del 50% disponible"/>
+                    <!-- Color dot indicator — Yellow -->
+                    <i class="fa fa-circle text-warning small"
+                       invisible="insotech_resolution_color != 'warning'"
+                       title="Entre 20% y 50% disponible"/>
+                    <!-- Color dot indicator — Red -->
+                    <i class="fa fa-circle text-danger small"
+                       invisible="insotech_resolution_color != 'danger'"
+                       title="Menos del 20% disponible"/>
+
+                    <!-- Badge with count — Green -->
+                    <span class="badge rounded-pill text-bg-success"
+                          invisible="insotech_resolution_color != 'success'">
+                        <field name="insotech_resolution_used"
+                               nolabel="1" readonly="1"/>
+                        /
+                        <field name="insotech_resolution_max"
+                               nolabel="1" readonly="1"/>
+                        usados
+                    </span>
+                    <!-- Badge with count — Yellow -->
+                    <span class="badge rounded-pill text-bg-warning"
+                          invisible="insotech_resolution_color != 'warning'">
+                        <field name="insotech_resolution_used"
+                               nolabel="1" readonly="1"/>
+                        /
+                        <field name="insotech_resolution_max"
+                               nolabel="1" readonly="1"/>
+                        usados
+                    </span>
+                    <!-- Badge with count — Red -->
+                    <span class="badge rounded-pill text-bg-danger"
+                          invisible="insotech_resolution_color != 'danger'">
+                        <field name="insotech_resolution_used"
+                               nolabel="1" readonly="1"/>
+                        /
+                        <field name="insotech_resolution_max"
+                               nolabel="1" readonly="1"/>
+                        usados
+                    </span>
+
+                    <!-- Percentage available -->
+                    <span class="text-muted small">
+                        (<field name="insotech_resolution_percent"
+                                nolabel="1"
+                                readonly="1"/>% disponible)
+                    </span>
+
+                    <!-- Warning message for low availability -->
+                    <span class="text-danger small fw-bold ms-2"
+                          invisible="insotech_resolution_color != 'danger'">
+                        <i class="fa fa-exclamation-triangle"/>
+                        ¡Solicite nueva resolución!
+                    </span>
                 </div>
             </xpath>
 
