@@ -359,6 +359,11 @@ class DianSetupWizard(models.TransientModel):
         Tries to enable the test environment and trigger the
         certification process using l10n_co_dian's native methods.
 
+        IMPORTANT: All field access is wrapped in try/except because
+        writing to l10n_co_dian fields (e.g. test environment flags)
+        may internally trigger certificate validation. We must NEVER
+        let a missing certificate block or crash the wizard.
+
         :param company: res.company sudo recordset
         """
         # Try to set test environment flag
@@ -367,12 +372,20 @@ class DianSetupWizard(models.TransientModel):
             'l10n_co_edi_test_environment',
         ]
         for field_name in test_env_fields:
-            if hasattr(company, field_name):
-                company[field_name] = True
-                _logger.info(
-                    "Insotech DIAN Wizard: Activated %s on company %s",
-                    field_name, company.id
-                )
+            if field_name in company._fields:
+                try:
+                    company.write({field_name: True})
+                    _logger.info(
+                        "Insotech DIAN Wizard: Activated %s "
+                        "on company %s",
+                        field_name, company.id
+                    )
+                except Exception as e:
+                    _logger.warning(
+                        "Insotech DIAN Wizard: Could not set %s "
+                        "on company %s: %s (certificate missing?)",
+                        field_name, company.id, str(e)
+                    )
                 break
 
         # Try to activate certification flag
@@ -381,15 +394,25 @@ class DianSetupWizard(models.TransientModel):
             'l10n_co_edi_enable_certification',
         ]
         for field_name in cert_fields:
-            if hasattr(company, field_name):
-                company[field_name] = True
-                _logger.info(
-                    "Insotech DIAN Wizard: Activated %s on company %s",
-                    field_name, company.id
-                )
+            if field_name in company._fields:
+                try:
+                    company.write({field_name: True})
+                    _logger.info(
+                        "Insotech DIAN Wizard: Activated %s "
+                        "on company %s",
+                        field_name, company.id
+                    )
+                except Exception as e:
+                    _logger.warning(
+                        "Insotech DIAN Wizard: Could not set %s "
+                        "on company %s: %s (certificate missing?)",
+                        field_name, company.id, str(e)
+                    )
                 break
 
         # Try to trigger the native certification process
+        # NOTE: This may require a valid certificate to be loaded.
+        # If it fails, the user must trigger it manually from Settings.
         cert_methods = [
             '_l10n_co_dian_start_certification',
             'action_l10n_co_dian_start_certification',
@@ -399,11 +422,20 @@ class DianSetupWizard(models.TransientModel):
             if hasattr(company, method_name):
                 method = getattr(company, method_name)
                 if callable(method):
-                    _logger.info(
-                        "Insotech DIAN Wizard: Calling %s on "
-                        "company %s", method_name, company.id
-                    )
-                    method()
+                    try:
+                        _logger.info(
+                            "Insotech DIAN Wizard: Calling %s "
+                            "on company %s",
+                            method_name, company.id
+                        )
+                        method()
+                    except Exception as e:
+                        _logger.warning(
+                            "Insotech DIAN Wizard: %s failed "
+                            "on company %s: %s. The certification "
+                            "must be triggered manually.",
+                            method_name, company.id, str(e)
+                        )
                     return
 
         _logger.warning(

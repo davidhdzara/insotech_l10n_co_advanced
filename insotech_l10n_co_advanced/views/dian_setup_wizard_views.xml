@@ -136,7 +136,7 @@
                                    placeholder="ej. a1b2c3d4-e5f6-7890-..."
                                    required="current_step == 'credentials'"/>
                             <field name="software_pin"
-                                   password="True"
+                                   widget="password"
                                    placeholder="ej. 12345"
                                    required="current_step == 'credentials'"/>
                         </group>
@@ -367,7 +367,7 @@ action = {
     <!-- ================================================================== -->
     <menuitem id="insotech_l10n_co_advanced_menu_dian_setup"
               name="Configuración Express DIAN"
-              parent="account.account_account_menu"
+              parent="account.menu_finance_configuration"
               action="insotech_l10n_co_advanced_action_dian_setup_wizard"
               groups="account.group_account_manager"
               sequence="99"/>
