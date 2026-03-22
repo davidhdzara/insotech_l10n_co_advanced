@@ -187,59 +187,68 @@ class AccountMove(models.Model):
             move.insotech_resolution_color = ''
             move.insotech_resolution_progress_width = 0
 
-            if not move.insotech_is_co_edi or not move.journal_id:
-                continue
+            try:
+                if not move.insotech_is_co_edi or not move.journal_id:
+                    continue
 
-            journal = move.journal_id
+                journal = move.journal_id
 
-            # Read range fields from l10n_co_dian on the journal
-            min_range = 0
-            max_range = 0
-            if hasattr(journal, 'l10n_co_edi_min_range_number'):
-                min_range = journal.l10n_co_edi_min_range_number or 0
-            if hasattr(journal, 'l10n_co_edi_max_range_number'):
-                max_range = journal.l10n_co_edi_max_range_number or 0
+                # Read range fields from l10n_co_dian on the journal
+                min_range = 0
+                max_range = 0
+                if 'l10n_co_edi_min_range_number' in journal._fields:
+                    min_range = journal.l10n_co_edi_min_range_number or 0
+                if 'l10n_co_edi_max_range_number' in journal._fields:
+                    max_range = journal.l10n_co_edi_max_range_number or 0
 
-            if not max_range:
-                continue
+                if not max_range:
+                    continue
 
-            total_authorized = max_range - min_range + 1
+                total_authorized = max_range - min_range + 1
 
-            # Count posted invoices in this journal
-            # Exclude PRE-INV temporary names
-            used_count = self.search_count([
-                ('journal_id', '=', journal.id),
-                ('state', '=', 'posted'),
-                ('move_type', 'in', (
-                    'out_invoice', 'out_refund',
-                )),
-                ('name', 'not like', 'PRE-INV%'),
-            ])
+                # Count posted invoices in this journal
+                # Exclude PRE-INV temporary names
+                used_count = self.search_count([
+                    ('journal_id', '=', journal.id),
+                    ('state', '=', 'posted'),
+                    ('move_type', 'in', (
+                        'out_invoice', 'out_refund',
+                    )),
+                    ('name', 'not like', 'PRE-INV%'),
+                ])
 
-            percent_available = 0.0
-            if total_authorized > 0:
-                percent_available = (
-                    (total_authorized - used_count)
-                    / total_authorized
-                ) * 100.0
-                # Clamp to 0-100
-                percent_available = max(0.0, min(100.0, percent_available))
+                percent_available = 0.0
+                if total_authorized > 0:
+                    percent_available = (
+                        (total_authorized - used_count)
+                        / total_authorized
+                    ) * 100.0
+                    # Clamp to 0-100
+                    percent_available = max(
+                        0.0, min(100.0, percent_available)
+                    )
 
-            # Determine color class
-            if percent_available > 50:
-                color = 'success'
-            elif percent_available > 20:
-                color = 'warning'
-            else:
-                color = 'danger'
+                # Determine color class
+                if percent_available > 50:
+                    color = 'success'
+                elif percent_available > 20:
+                    color = 'warning'
+                else:
+                    color = 'danger'
 
-            move.insotech_resolution_used = used_count
-            move.insotech_resolution_max = total_authorized
-            move.insotech_resolution_percent = percent_available
-            move.insotech_resolution_color = color
-            move.insotech_resolution_progress_width = min(
-                100, int(100 - percent_available)
-            )
+                move.insotech_resolution_used = used_count
+                move.insotech_resolution_max = total_authorized
+                move.insotech_resolution_percent = percent_available
+                move.insotech_resolution_color = color
+                move.insotech_resolution_progress_width = min(
+                    100, int(100 - percent_available)
+                )
+            except Exception:
+                _logger.debug(
+                    "Insotech: Could not compute resolution info "
+                    "for move %s, skipping.", move.id,
+                    exc_info=True,
+                )
 
     # -------------------------------------------------------------------------
     # PRIVATE HELPERS
