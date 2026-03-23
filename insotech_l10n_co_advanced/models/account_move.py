@@ -857,6 +857,33 @@ class AccountMove(models.Model):
         return True
 
     # -------------------------------------------------------------------------
+    # MAIN INTERCEPTION — action_send_and_print (Odoo 19)
+    # -------------------------------------------------------------------------
+    # In Odoo 19, the user clicks "Enviar" → calls action_send_and_print()
+    # on account.move → opens the account.move.send wizard.
+    # l10n_co_dian hooks into this wizard to generate the XML.
+    # We MUST swap the name BEFORE this flow starts.
+    # -------------------------------------------------------------------------
+
+    def action_send_and_print(self, **kwargs):
+        """Override the Send & Print action to swap name first.
+
+        This is the ENTRY POINT for the DIAN send flow.
+        When the user clicks "Enviar", Odoo calls this method.
+        We swap PRE-INV → DIAN name BEFORE the wizard opens,
+        so l10n_co_dian generates the XML with the correct name.
+
+        If the send fails, the rejection handler restores PRE-INV.
+        """
+        self._insotech_validate_license_before_dian()
+        self._insotech_swap_to_dian_name()
+        try:
+            return super().action_send_and_print(**kwargs)
+        except Exception:
+            self._insotech_swap_to_pre_inv_name()
+            raise
+
+    # -------------------------------------------------------------------------
     # USER ACTIONS
     # -------------------------------------------------------------------------
 
