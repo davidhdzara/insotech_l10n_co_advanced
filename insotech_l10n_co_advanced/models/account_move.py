@@ -873,15 +873,54 @@ class AccountMove(models.Model):
         We swap PRE-INV → DIAN name BEFORE the wizard opens,
         so l10n_co_dian generates the XML with the correct name.
 
-        If the send fails, the rejection handler restores PRE-INV.
+        After super() returns, we check if DIAN accepted (CUFE
+        was populated) and auto-process the acceptance.
+
+        If the send fails with exception, restore PRE-INV.
         """
         self._insotech_validate_license_before_dian()
         self._insotech_swap_to_dian_name()
         try:
-            return super().action_send_and_print(**kwargs)
+            result = super().action_send_and_print(**kwargs)
         except Exception:
             self._insotech_swap_to_pre_inv_name()
             raise
+
+        # -------------------------------------------------------
+        # POST-SEND: Check if DIAN accepted during this call
+        # -------------------------------------------------------
+        # After the wizard completes, check if DIAN accepted.
+        # We detect acceptance by checking if l10n_co_edi_cufe
+        # was populated (CUFE = proof of DIAN acceptance).
+        # This is MORE RELIABLE than the account.edi.document
+        # write hook which may not fire correctly.
+        # -------------------------------------------------------
+        for move in self:
+            if move.insotech_dian_status != 'pending':
+                continue
+            try:
+                # Refresh from DB to get latest values
+                move.invalidate_recordset(
+                    ['l10n_co_edi_cufe_cude_ref']
+                )
+                cufe = getattr(
+                    move, 'l10n_co_edi_cufe_cude_ref', None
+                )
+                if cufe:
+                    _logger.info(
+                        "Insotech: Post-send DIAN acceptance "
+                        "detected for move %s (CUFE: %s...)",
+                        move.id, str(cufe)[:20],
+                    )
+                    move._insotech_process_dian_acceptance()
+            except Exception as e:
+                _logger.warning(
+                    "Insotech: Post-send acceptance check "
+                    "failed for move %s: %s (non-blocking)",
+                    move.id, str(e),
+                )
+
+        return result
 
     # -------------------------------------------------------------------------
     # USER ACTIONS
