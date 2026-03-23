@@ -105,7 +105,10 @@ Buscar: `Insotech: Factura Pre-Validación DIAN` (código: `insotech.pre.inv`)
 ### 4. Test funcional
 1. Crear una factura de cliente (empresa colombiana).
 2. Confirmar → debe aparecer `PRE-INV/2026/NNNNN` y banner amarillo.
-3. Hacer clic en "Forzar Aceptación DIAN" → debe restaurar `INV/2026/NNNNN`.
+3. Enviar a la DIAN → en logs debe verse: `Swapping to DIAN name: PRE-INV/... → FE1`.
+4. Si DIAN acepta → nombre final `FE1` ✅.
+5. Si DIAN rechaza → nombre vuelve a `PRE-INV/...`, puede reintentar.
+6. Alternativa: "Forzar Aceptación DIAN" → debe asignar `FE{n}`.
 
 ---
 
@@ -116,10 +119,13 @@ Buscar: `Insotech: Factura Pre-Validación DIAN` (código: `insotech.pre.inv`)
 | Módulo no aparece en Aplicaciones | Path de 2 niveles | Copiar módulo directo a raíz del repo |
 | Error xpath al instalar | Nombres de elementos cambiaron en Odoo 19 | Usar xpaths seguros: `//header`, `//sheet` |
 | Banner no aparece | Campos invisibles declarados dentro de `<sheet>` | Moverlos a `//header position="before"` |
-| Nuevas facturas salen como PRE-INV (no INV) | SequenceMixin contaminado | Verificar override de `_get_last_sequence_domain()` |
+| Nuevas facturas salen como PRE-INV (no FE) | SequenceMixin contaminado | Verificar override de `_get_last_sequence_domain()` |
 | HTML crudo en chatter | Usando `_()` en vez de `Markup()` | Usar `from markupsafe import Markup` |
 | Error `column does not exist` | Módulo actualizado pero no upgradeado | Aplicaciones → tres puntos → Actualizar |
 | Build KILLED en Odoo.sh | OOM, timeout, o error de código | Revisar logs filtrados por `ERROR` |
+| **FAD05a**: caracteres inválidos | `move.name` tiene `/` o año | Verificar `_insotech_compute_dian_compliant_name()` transforma correctamente |
+| **FAD05b/c**: número fuera de rango | Offset DIAN no aplicado | Verificar `l10n_co_edi_min/max_range_number` en el diario |
+| Resolución agotada `UserError` | Número DIAN > `max_range` | Solicitar nueva resolución a la DIAN |
 
 ---
 

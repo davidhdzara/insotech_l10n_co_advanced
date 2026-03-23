@@ -4,6 +4,36 @@ Todos los cambios relevantes de este módulo se documentan en este archivo.
 
 ---
 
+## [19.0.1.1.0] — 2026-03-23
+
+### Fix Crítico: Errores DIAN FAD05a/b/c
+- **[FIX] Nombre PRE-INV enviado a DIAN**: Los hooks de envío (`_l10n_co_dian_post`, `_l10n_co_edi_send`, `_hook_invoice_document_before_pdf`) ahora intercambian el nombre PRE-INV → nombre DIAN-compliant (`FE1`) antes de generar el XML, y restauran PRE-INV si falla.
+- **[FIX] Formato incompatible**: El nombre reservado `FE/2026/00001` se transforma a `FE1` (sin `/` ni año) usando `_insotech_compute_dian_compliant_name()`.
+
+### Añadido
+- **`_insotech_compute_dian_compliant_name()`**: Transforma dinámicamente el nombre de Odoo al formato DIAN. Lee prefijo de `journal.code` (FE, FEI, FEGU, NC, ND, DS…), extrae el número, aplica auto-offset si `min_range > 1`, y valida contra `max_range`.
+- **`_insotech_swap_to_dian_name()`**: Swap temporal PRE-INV → nombre DIAN para generación de XML.
+- **`_insotech_swap_to_pre_inv_name()`**: Restaura PRE-INV si el envío falla.
+- **`account_journal.py`** (nuevo): Herencia de `account.journal` con:
+  - `_insotech_get_dian_prefix()` — prefijo dinámico desde `journal.code`
+  - `_insotech_check_dian_sequence_format()` — warning si el formato tiene `/`
+  - `_insotech_is_dian_enabled()` — check reutilizable
+  - Overrides de `create()`/`write()` para validación proactiva
+
+### Mejorado
+- **`_insotech_process_dian_rejection()`**: Ahora restaura explícitamente el nombre PRE-INV (antes asumía que ya estaba).
+- **`_insotech_process_dian_acceptance()`**: Usa `_insotech_compute_dian_compliant_name()` para el nombre final en vez del nombre reservado crudo.
+- **Hooks DIAN**: Envueltos en `try/except` para restaurar PRE-INV si `super()` lanza excepción.
+
+### Parámetros Comerciales Dinámicos
+| Concepto | Campo | Ejemplo |
+|---|---|---|
+| Prefijo | `journal.code` | FE, FEI, FEGU |
+| Rango inicio | `l10n_co_edi_min_range_number` | 1, 5001 |
+| Rango fin | `l10n_co_edi_max_range_number` | 5000, 10000 |
+
+---
+
 ## [19.0.1.0.0] — 2026-03-21
 
 ### Añadido

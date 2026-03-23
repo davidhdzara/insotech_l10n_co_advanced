@@ -24,17 +24,19 @@ Cuando Odoo confirma una factura, el `SequenceMixin` asigna inmediatamente el si
 ```
 insotech_l10n_co_advanced/
 ├── __init__.py                    # Importa models
-├── __manifest__.py                # Manifiesto v19.0.1.0.0
+├── __manifest__.py                # Manifiesto v19.0.1.1.0
 ├── data/
 │   └── ir_sequence_data.xml       # Secuencia PRE-INV/YYYY/NNNNN
 ├── models/
-│   ├── __init__.py                # Importa account_move + account_edi_document
+│   ├── __init__.py                # Importa account_move + account_edi_document + account_journal
 │   ├── account_move.py            # Lógica principal (herencia account.move)
-│   └── account_edi_document.py    # Hook automático de respuesta DIAN
+│   ├── account_edi_document.py    # Hook automático de respuesta DIAN
+│   └── account_journal.py         # Validación de formato secuencia DIAN
 ├── security/
 │   └── ir.model.access.csv        # ACL (solo header)
 └── views/
-    └── account_move_views.xml      # Banners, botones, campos ocultos
+    ├── account_move_views.xml      # Banners, botones, campos ocultos
+    └── account_journal_views.xml   # Desactivación de vista legacy
 ```
 
 ---
@@ -49,13 +51,19 @@ insotech_l10n_co_advanced/
               │
     ┌────────────────────────────────────────────────┐
     │ 1. Verifica l10n_co_dian_provider en el diario │
-    │ 2. super()._post() → Odoo asigna INV/2026/01  │
-    │ 3. Guarda INV/2026/01 en reserved_dian_name    │
+    │ 2. super()._post() → Odoo asigna FE/2026/0001 │
+    │ 3. Guarda FE/2026/0001 en reserved_dian_name   │
     │ 4. Renombra a PRE-INV/2026/00001               │
     │ 5. Estado → 'pending'                          │
     └──────────┬─────────────────────────────────────┘
                │
       Enviar a DIAN (botón "Enviar")
+               │
+    ┌────────────────────────────────────────────────┐
+    │ SWAP: PRE-INV/2026/00001 → FE1                │
+    │ (lee journal.code + extrae número + offset)    │
+    │ l10n_co_dian genera XML con <cbc:ID>FE1</…>    │
+    └──────────┬─────────────────────────────────────┘
                │
         ┌──────┴──────┐
         │             │
@@ -64,11 +72,12 @@ insotech_l10n_co_advanced/
         │             │
         ▼             ▼
   ┌────────────┐  ┌──────────────────┐
-  │INV/2026/01 │  │ PRE-INV/2026/... │
-  │(restaurado │  │ Corregir error   │
-  │ de reserva)│  │ y reintentar     │
-  │ ✅ Legal   │  │ ❌ Sin pérdida   │
-  └────────────┘  └──────────────────┘
+  │   FE1      │  │ PRE-INV/2026/... │
+  │(DIAN name  │  │ (restaurado)     │
+  │ se queda)  │  │ Corregir error   │
+  │ ✅ Legal   │  │ y reintentar     │
+  └────────────┘  │ ❌ Sin pérdida   │
+                  └──────────────────┘
 ```
 
 ---
@@ -135,11 +144,53 @@ return False
 
 #### `_insotech_process_dian_acceptance()`
 
-Restaura `insotech_reserved_dian_name` como nombre definitivo. Incrementa `insotech_usage_count`.
+Computa el nombre DIAN-compliant (`FE1`) usando `_insotech_compute_dian_compliant_name()` y lo establece como nombre definitivo. Incrementa `insotech_usage_count`.
 
 #### `_insotech_process_dian_rejection(error_message)`
 
-Mantiene el nombre PRE-INV. Registra el error en chatter.
+Restaura el nombre PRE-INV (desde `insotech_pre_inv_name`). Registra el error en chatter. El consecutivo DIAN **no se pierde**.
+
+#### `_insotech_compute_dian_compliant_name()`
+
+Transforma el nombre reservado de Odoo al formato DIAN:
+- Lee prefijo de `journal.code` (dinámico: FE, FEI, FEGU, NC, ND, DS…)
+- Extrae el número trailing del nombre reservado
+- **Auto-offset**: si `raw_number < min_range`, calcula `min_range + (raw_number - 1)`
+- **Validación**: si `dian_number > max_range`, lanza `UserError` (resolución agotada)
+
+Ejemplos:
+| Nombre reservado | `journal.code` | Rango | Resultado |
+|---|---|---|---|
+| `FE/2026/00001` | `FE` | 1–5000 | `FE1` |
+| `FE/2026/00003` | `FEGU` | 5001–10000 | `FEGU5003` |
+| `FEI/2026/00500` | `FEI` | 1–500 | `FEI500` |
+| `FE/2026/05001` | `FE` | 1–5000 | `UserError` ⚠️ |
+
+#### `_insotech_swap_to_dian_name()`
+
+Swap temporal: renombra `move.name` de PRE-INV al nombre DIAN-compliant antes de que `l10n_co_dian` genere el XML. Solo actúa si `insotech_dian_status == 'pending'`.
+
+#### `_insotech_swap_to_pre_inv_name()`
+
+Restaura el nombre PRE-INV si el envío a DIAN falla con excepción.
+
+---
+
+## Modelo: `account.journal` (Herencia)
+
+### Métodos Añadidos
+
+#### `_insotech_get_dian_prefix()`
+
+Retorna `journal.code` como prefijo DIAN (dinámico por cliente).
+
+#### `_insotech_check_dian_sequence_format()`
+
+Valida que el formato de secuencia del diario sea DIAN-compatible. Detecta si el último move tiene `/` en su nombre y genera warning. No bloquea.
+
+#### `_insotech_is_dian_enabled()`
+
+Verifica si el diario tiene configuración DIAN activa (reutilizable).
 
 ---
 
