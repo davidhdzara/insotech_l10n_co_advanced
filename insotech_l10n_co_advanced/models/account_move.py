@@ -1018,3 +1018,30 @@ class AccountMove(models.Model):
             "move %s (%s)",
             self.env.user.login, self.id, self.name
         )
+
+    def action_insotech_verify_cufe(self):
+        """Open the DIAN portal to verify invoice CUFE.
+
+        Opens the official DIAN catalog in a new browser tab
+        using the invoice's CUFE/CUDE as the search key.
+
+        Works with ANY journal prefix — reads the field
+        l10n_co_edi_cufe_cude_ref dynamically.
+        """
+        self.ensure_one()
+        cufe = getattr(self, 'l10n_co_edi_cufe_cude_ref', None)
+        if not cufe:
+            raise UserError(_(
+                "Esta factura no tiene un CUFE/CUDE asignado. "
+                "Solo puede verificar facturas que hayan sido "
+                "enviadas y aceptadas por la DIAN."
+            ))
+        url = (
+            'https://catalogo-vpfe.dian.gov.co/document/'
+            'searchqr?documentkey=%s' % cufe
+        )
+        return {
+            'type': 'ir.actions.act_url',
+            'url': url,
+            'target': 'new',
+        }

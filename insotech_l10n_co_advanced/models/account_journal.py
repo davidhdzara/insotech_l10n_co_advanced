@@ -1,6 +1,6 @@
 import logging
 
-from odoo import models, api, _
+from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
@@ -8,6 +8,83 @@ _logger = logging.getLogger(__name__)
 
 class AccountJournal(models.Model):
     _inherit = 'account.journal'
+
+    # -----------------------------------------------------------------
+    # RESOLUTION COUNTER (computed — dynamic for any journal)
+    # -----------------------------------------------------------------
+
+    insotech_resolution_used = fields.Integer(
+        string='Consecutivos usados',
+        compute='_compute_insotech_resolution_counter',
+    )
+    insotech_resolution_total = fields.Integer(
+        string='Total autorizados',
+        compute='_compute_insotech_resolution_counter',
+    )
+    insotech_resolution_available = fields.Integer(
+        string='Disponibles',
+        compute='_compute_insotech_resolution_counter',
+    )
+    insotech_resolution_percent = fields.Float(
+        string='% Disponible',
+        compute='_compute_insotech_resolution_counter',
+    )
+    insotech_resolution_display = fields.Char(
+        string='Uso de resolución',
+        compute='_compute_insotech_resolution_counter',
+    )
+
+    @api.depends('l10n_co_edi_min_range_number',
+                 'l10n_co_edi_max_range_number')
+    def _compute_insotech_resolution_counter(self):
+        """Count DIAN resolution usage per journal.
+
+        Counts posted invoices (excluding PRE-INV) in this
+        journal and compares against the authorized range.
+        Works with ANY journal name — reads range fields
+        dynamically from l10n_co_edi fields.
+        """
+        for journal in self:
+            journal.insotech_resolution_used = 0
+            journal.insotech_resolution_total = 0
+            journal.insotech_resolution_available = 0
+            journal.insotech_resolution_percent = 0.0
+            journal.insotech_resolution_display = ''
+
+            if not journal._insotech_is_dian_enabled():
+                continue
+
+            min_r = getattr(
+                journal, 'l10n_co_edi_min_range_number', 0
+            ) or 0
+            max_r = getattr(
+                journal, 'l10n_co_edi_max_range_number', 0
+            ) or 0
+            if not max_r:
+                continue
+
+            total = max_r - min_r + 1
+
+            used = self.env['account.move'].search_count([
+                ('journal_id', '=', journal.id),
+                ('state', '=', 'posted'),
+                ('move_type', 'in', (
+                    'out_invoice', 'out_refund',
+                )),
+                ('name', 'not like', 'PRE-INV%'),
+            ])
+
+            available = max(0, total - used)
+            pct = (available / total * 100) if total > 0 else 0
+
+            journal.insotech_resolution_used = used
+            journal.insotech_resolution_total = total
+            journal.insotech_resolution_available = available
+            journal.insotech_resolution_percent = round(pct, 1)
+            journal.insotech_resolution_display = (
+                '%d / %d usados (%.1f%% disponible)'
+                % (used, total, pct)
+            )
 
     # -----------------------------------------------------------------
     # DIAN SEQUENCE FORMAT VALIDATION

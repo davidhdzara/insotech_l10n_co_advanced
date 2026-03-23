@@ -148,6 +148,14 @@
                         invisible="insotech_dian_status not in ('pending', 'rejected')"
                         groups="account.group_account_manager"
                         confirm="¿Está seguro? Esta acción asignará el siguiente consecutivo DIAN disponible a esta factura. Solo use esto si la DIAN aceptó la factura pero el sistema no lo registró automáticamente."/>
+
+                <!-- Verify CUFE on DIAN portal -->
+                <button name="action_insotech_verify_cufe"
+                        string="🔍 Verificar en DIAN"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-external-link"
+                        invisible="insotech_dian_status != 'accepted'"/>
             </xpath>
 
         </field>
