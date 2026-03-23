@@ -28,8 +28,6 @@
         'security/ir.model.access.csv',
         'data/ir_sequence_data.xml',
         'views/account_move_views.xml',
-        'views/account_journal_views.xml',
-        'wizard/dian_manual_config_wizard_views.xml',
     ],
     'installable': True,
     'application': False,

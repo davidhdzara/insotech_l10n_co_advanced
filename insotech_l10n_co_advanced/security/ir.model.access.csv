@@ -1,2 +1,1 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_dian_manual_config_wizard,access.l10n_co_dian.manual.config.wizard,model_l10n_co_dian_manual_config_wizard,account.group_account_invoice,1,1,1,1
