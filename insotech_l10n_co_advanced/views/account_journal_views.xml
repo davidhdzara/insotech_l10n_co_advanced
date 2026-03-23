@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Add "Configurar Manualmente" button to journal form -->
+    <record id="view_account_journal_form_dian_manual" model="ir.ui.view">
+        <field name="name">account.journal.form.dian.manual</field>
+        <field name="model">account.journal</field>
+        <field name="inherit_id" ref="l10n_co_dian.view_account_journal_form"/>
+        <field name="priority">99</field>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='button_l10n_co_dian_fetch_numbering_range']"
+                   position="after">
+                <button name="button_l10n_co_dian_open_manual_config"
+                        string="Configurar Resolución Manualmente"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-pencil"
+                        help="Configure los datos de la resolución DIAN manualmente si el botón de recarga automática falla."/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

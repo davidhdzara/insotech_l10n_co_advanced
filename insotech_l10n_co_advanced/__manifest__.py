@@ -1,6 +1,6 @@
 {
     'name': 'Insotech — Localización Colombiana Avanzada',
-    'version': '19.0.1.1.0',
+    'version': '19.0.1.2.0',
     'category': 'Accounting/Localizations',
     'summary': 'Protección de consecutivos DIAN y facturación electrónica segura para Colombia',
     'description': """
@@ -25,8 +25,11 @@
         'insotech_dian_wizard',
     ],
     'data': [
+        'security/ir.model.access.csv',
         'data/ir_sequence_data.xml',
         'views/account_move_views.xml',
+        'views/account_journal_views.xml',
+        'wizard/dian_manual_config_wizard_views.xml',
     ],
     'installable': True,
     'application': False,
