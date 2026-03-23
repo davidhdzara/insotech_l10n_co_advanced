@@ -22,7 +22,6 @@
         'l10n_co_edi',
         'l10n_co_dian',
         'insotech_core',
-        'insotech_dian_wizard',
     ],
     'data': [
         'security/ir.model.access.csv',
