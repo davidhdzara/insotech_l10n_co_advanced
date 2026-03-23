@@ -1,6 +1,6 @@
 import logging
 
-from odoo import models
+from odoo import models, api, _
 from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
@@ -8,6 +8,116 @@ _logger = logging.getLogger(__name__)
 
 class AccountJournal(models.Model):
     _inherit = 'account.journal'
+
+    # -----------------------------------------------------------------
+    # DIAN SEQUENCE FORMAT VALIDATION
+    # -----------------------------------------------------------------
+
+    def _insotech_get_dian_prefix(self):
+        """Return the DIAN prefix for this journal.
+
+        The prefix is read from the journal's ``code`` field
+        (displayed as 'Prefijo de secuencia' in the UI).  This
+        value is dynamic \u2014 each client can set any prefix
+        (``FE``, ``FEI``, ``FEGU``, etc.).
+
+        :returns: string prefix or empty string
+        """
+        self.ensure_one()
+        return (self.code or '').strip()
+
+    def _insotech_check_dian_sequence_format(self):
+        """Warn if the journal produces DIAN-incompatible names.
+
+        DIAN expects invoice numbers in the format:
+        ``{Prefix}{Number}``  (e.g. ``FE1``, ``FEGU500``).
+
+        Odoo 19 SequenceMixin default format is:
+        ``{code}/%(year)s/{padded_number}`` \u2192 ``FE/2026/00001``
+
+        This method checks the most recent posted move in the
+        journal and warns if the name contains ``/`` or other
+        characters that DIAN will reject (rule FAD05a).
+
+        It does NOT block \u2014 it only logs and returns a message.
+        """
+        self.ensure_one()
+        if not self._insotech_is_dian_enabled():
+            return ''
+
+        # Check last posted move in this journal
+        last_move = self.env['account.move'].search([
+            ('journal_id', '=', self.id),
+            ('state', '=', 'posted'),
+            ('move_type', 'in', (
+                'out_invoice', 'out_refund',
+            )),
+            ('name', 'not like', 'PRE-INV%'),
+        ], limit=1, order='id desc')
+
+        if last_move and '/' in last_move.name:
+            prefix = self._insotech_get_dian_prefix()
+            msg = (
+                "El diario '%s' genera nombres con formato "
+                "'%s' que contiene '/'. La DIAN rechazará "
+                "esto con error FAD05a.\n\n"
+                "Formato esperado: %s1, %s2, ... %s%d\n\n"
+                "Para corregir: edite la referencia de la "
+                "última factura confirmada en este diario "
+                "para que siga el formato '%s1' (sin barras "
+                "ni año)."
+            ) % (
+                self.name,
+                last_move.name,
+                prefix, prefix, prefix,
+                self.l10n_co_edi_max_range_number or 5000,
+                prefix,
+            )
+            _logger.warning("Insotech: %s", msg)
+            return msg
+        return ''
+
+    def _insotech_is_dian_enabled(self):
+        """Check if this journal has DIAN configuration active."""
+        if hasattr(self, 'l10n_co_dian_provider'):
+            if self.l10n_co_dian_provider:
+                return True
+        if hasattr(self, 'l10n_co_edi_dian_authorization_number'):
+            if self.l10n_co_edi_dian_authorization_number:
+                return True
+        return False
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Override create to warn about DIAN sequence format."""
+        journals = super().create(vals_list)
+        for journal in journals:
+            msg = journal._insotech_check_dian_sequence_format()
+            if msg:
+                _logger.warning(
+                    "Insotech: New DIAN journal '%s' may have "
+                    "incompatible sequence format.",
+                    journal.name,
+                )
+        return journals
+
+    def write(self, vals):
+        """Override write to warn about DIAN sequence format."""
+        result = super().write(vals)
+        # Check if DIAN-related fields were modified
+        dian_fields = {
+            'l10n_co_dian_provider',
+            'l10n_co_edi_dian_authorization_number',
+            'code',
+        }
+        if dian_fields & set(vals.keys()):
+            for journal in self:
+                journal._insotech_check_dian_sequence_format()
+        return result
+
+    # -----------------------------------------------------------------
+    # DIAN NUMBERING RANGE FETCH (existing)
+    # -----------------------------------------------------------------
 
     def button_l10n_co_dian_fetch_numbering_range(self):
         """Override: sanitize NIT and improve DIAN error messages.

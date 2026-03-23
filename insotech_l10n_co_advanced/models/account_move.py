@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import re
 # =============================================================================
 # INVESTIGACIÓN — Odoo 19 Enterprise + l10n_co_dian (2026-03-21)
 #
@@ -441,28 +442,35 @@ class AccountMove(models.Model):
                 continue
 
             try:
-                # Restore the reserved DIAN name
-                legal_name = move.insotech_reserved_dian_name
-                if not legal_name:
-                    raise UserError(_(
-                        "No se encontró el nombre DIAN reservado para "
-                        "la factura %s. Contacte a soporte técnico.",
-                        move.name
-                    ))
+                # Compute the DIAN-compliant name
+                # (e.g. FE/2026/00001 → FE1)
+                dian_name = move._insotech_compute_dian_compliant_name()
+                if not dian_name:
+                    # Fallback: use whatever name the move has
+                    # (may already be swapped to DIAN format)
+                    dian_name = (
+                        move.insotech_reserved_dian_name
+                        or move.name
+                    )
+                    _logger.warning(
+                        "Insotech: Could not compute DIAN name "
+                        "for acceptance of move %s, using: %s",
+                        move.id, dian_name,
+                    )
 
                 old_name = move.name
 
                 _logger.info(
                     "Insotech: DIAN accepted move %s. "
-                    "Mutating name: %s → %s",
-                    move.id, old_name, legal_name
+                    "Final name: %s → %s",
+                    move.id, old_name, dian_name
                 )
 
-                # Write the legal name and update status
+                # Write the DIAN-compliant name and update status
                 move.with_context(
                     skip_account_move_synchronization=True
                 ).write({
-                    'name': legal_name,
+                    'name': dian_name,
                     'insotech_dian_status': 'accepted',
                 })
 
@@ -479,7 +487,7 @@ class AccountMove(models.Model):
                         '✅ <b>Factura aceptada por la DIAN</b>'
                         '<br/>Nombre temporal: %s'
                         '<br/>Número definitivo: <b>%s</b>'
-                    ) % (old_name, legal_name),
+                    ) % (old_name, dian_name),
                     message_type='notification',
                     subtype_xmlid='mail.mt_note',
                 )
@@ -498,11 +506,12 @@ class AccountMove(models.Model):
                 ))
 
     def _insotech_process_dian_rejection(self, error_message=''):
-        """Process a DIAN rejection: keep PRE-INV name and log error.
+        """Process a DIAN rejection: restore PRE-INV and log error.
 
-        This method should be called when the DIAN ApplicationResponse
-        indicates the invoice was rejected. The PRE-INV name stays
-        intact, and NO DIAN consecutive is lost.
+        This method is called when the DIAN ApplicationResponse
+        indicates the invoice was rejected. Since the name was
+        swapped to the real DIAN name for sending, we must restore
+        the PRE-INV name so no consecutive is lost.
 
         :param error_message: The error message/reason from the DIAN
         """
@@ -521,9 +530,19 @@ class AccountMove(models.Model):
                 move.id, move.name, error_message
             )
 
-            move.write({
-                'insotech_dian_status': 'rejected',
-            })
+            # Restore PRE-INV name so the consecutive is not lost
+            pre_inv = move.insotech_pre_inv_name
+            vals = {'insotech_dian_status': 'rejected'}
+            if pre_inv and move.name != pre_inv:
+                vals['name'] = pre_inv
+                _logger.info(
+                    "Insotech: Restoring PRE-INV name for rejected "
+                    "move %s: %s → %s",
+                    move.id, move.name, pre_inv,
+                )
+            move.with_context(
+                skip_account_move_synchronization=True,
+            ).write(vals)
 
             # Log in chatter
             move.message_post(
@@ -533,7 +552,8 @@ class AccountMove(models.Model):
                     '<br/><b>Motivo:</b> %s'
                     '<br/>Corrija el error y use '
                     '<i>"Reintentar Envío DIAN"</i>.'
-                ) % (move.name, error_message or 'Sin detalle'),
+                ) % (pre_inv or move.name,
+                     error_message or 'Sin detalle'),
                 message_type='notification',
                 subtype_xmlid='mail.mt_note',
             )
@@ -594,52 +614,246 @@ class AccountMove(models.Model):
                 # the client's business
 
     # -------------------------------------------------------------------------
+    # NAME SWAP HELPERS — Swap between PRE-INV and real DIAN name
+    # -------------------------------------------------------------------------
+
+    def _insotech_compute_dian_compliant_name(self):
+        """Compute a DIAN-compliant invoice name.
+
+        DIAN expects format: ``{Prefix}{Number}``
+        Examples: ``FE1``, ``FEI23``, ``FEGU5001``
+
+        The prefix is read dynamically from ``journal.code``
+        (can be any value: FE, FEI, FEGU, NC, ND, DS, etc.).
+
+        The number is extracted from
+        ``insotech_reserved_dian_name`` (the name Odoo assigned
+        during ``_post()``, e.g. ``FE/2026/00001`` → 1).
+
+        If the DIAN resolution range starts at a number > 1
+        (e.g. min_range=5001) but Odoo's SequenceMixin starts
+        at 1, the method auto-offsets the number so the first
+        invoice gets ``FE5001`` instead of ``FE1``.
+
+        Validates that the final number falls within the
+        authorized range [min_range, max_range].
+
+        :returns: DIAN-compliant name or None if not computable
+        :raises UserError: if the number exceeds max_range
+        """
+        self.ensure_one()
+        reserved = self.insotech_reserved_dian_name
+        if not reserved:
+            return None
+
+        # Extract trailing number from reserved name
+        # Handles: FE/2026/00001, FE/00001, FE1, etc.
+        match = re.search(r'(\d+)\s*$', reserved)
+        if not match:
+            _logger.warning(
+                "Insotech: Cannot extract number from "
+                "reserved name '%s' for move %s",
+                reserved, self.id,
+            )
+            return None
+
+        # Strip leading zeros to get actual number
+        raw_number = int(match.group(1))
+
+        # Read prefix from journal code (dynamic per client)
+        journal = self.journal_id
+        prefix = (journal.code or '').strip()
+        if not prefix:
+            _logger.warning(
+                "Insotech: Journal %s has no code/prefix "
+                "for move %s",
+                journal.id, self.id,
+            )
+            return None
+
+        # ----------------------------------------------------------
+        # DIAN RANGE VALIDATION & OFFSET
+        # ----------------------------------------------------------
+        # Read the authorized range from the journal
+        min_range = getattr(
+            journal, 'l10n_co_edi_min_range_number', 0
+        ) or 0
+        max_range = getattr(
+            journal, 'l10n_co_edi_max_range_number', 0
+        ) or 0
+
+        if min_range and max_range:
+            # Auto-offset: if Odoo's SequenceMixin starts at 1
+            # but DIAN range starts at min_range, offset it.
+            # Example: raw_number=1, min_range=5001
+            #          → dian_number = 5001 + (1-1) = 5001
+            # Example: raw_number=3, min_range=5001
+            #          → dian_number = 5001 + (3-1) = 5003
+            # Example: raw_number=1, min_range=1
+            #          → dian_number = 1 + (1-1) = 1 (no change)
+            if raw_number < min_range:
+                dian_number = min_range + (raw_number - 1)
+                _logger.info(
+                    "Insotech: Offsetting number for move %s: "
+                    "raw=%d, min_range=%d → dian=%d",
+                    self.id, raw_number, min_range, dian_number,
+                )
+            else:
+                # Number is already in range (l10n_co_dian
+                # may have configured the SequenceMixin)
+                dian_number = raw_number
+
+            # Validate against max_range
+            if dian_number > max_range:
+                raise UserError(_(
+                    "La resolución DIAN del diario '%s' se ha "
+                    "agotado.\n\n"
+                    "Número calculado: %s%d\n"
+                    "Rango autorizado: %s%d – %s%d\n\n"
+                    "Debe solicitar una nueva resolución de "
+                    "facturación a la DIAN y configurarla en "
+                    "el diario."
+                ) % (
+                    journal.name,
+                    prefix, dian_number,
+                    prefix, min_range,
+                    prefix, max_range,
+                ))
+        else:
+            # No range configured — use raw number
+            dian_number = raw_number
+            _logger.debug(
+                "Insotech: No DIAN range configured on "
+                "journal %s, using raw number %d",
+                journal.id, raw_number,
+            )
+
+        dian_name = '%s%d' % (prefix, dian_number)
+        return dian_name
+
+    def _insotech_swap_to_dian_name(self):
+        """Swap to DIAN-compliant name for XML generation.
+
+        Before l10n_co_dian generates the UBL XML, ``move.name``
+        must be in DIAN format (e.g. ``FE1``) instead of
+        ``PRE-INV/2026/00001``.
+
+        The reserved name (``FE/2026/00001``) is transformed
+        to DIAN format (``FE1``) using the journal prefix +
+        extracted sequence number.  No value is hardcoded.
+
+        This swap is TEMPORARY — if DIAN rejects, the rejection
+        handler restores the PRE-INV name. If DIAN accepts, the
+        acceptance handler keeps the real name.
+        """
+        for move in self:
+            if move.insotech_dian_status != 'pending':
+                continue
+            if not move.insotech_reserved_dian_name:
+                continue
+
+            dian_name = move._insotech_compute_dian_compliant_name()
+            if not dian_name:
+                _logger.warning(
+                    "Insotech: Could not compute DIAN name "
+                    "for move %s, using reserved name as-is: %s",
+                    move.id, move.insotech_reserved_dian_name,
+                )
+                dian_name = move.insotech_reserved_dian_name
+
+            if move.name != dian_name:
+                _logger.info(
+                    "Insotech: Swapping to DIAN name for "
+                    "move %s: %s → %s (for XML generation)",
+                    move.id, move.name, dian_name,
+                )
+                move.with_context(
+                    skip_account_move_synchronization=True,
+                ).write({'name': dian_name})
+
+    def _insotech_swap_to_pre_inv_name(self):
+        """Restore the PRE-INV name after a failed send attempt.
+
+        Called when an exception occurs during the DIAN send so
+        that the move keeps its protective PRE-INV name.
+        """
+        for move in self:
+            pre_inv = move.insotech_pre_inv_name
+            if pre_inv and move.name != pre_inv:
+                _logger.info(
+                    "Insotech: Restoring PRE-INV name for move %s: "
+                    "%s → %s",
+                    move.id, move.name, pre_inv,
+                )
+                move.with_context(
+                    skip_account_move_synchronization=True,
+                ).write({'name': pre_inv})
+
+    # -------------------------------------------------------------------------
     # HOOKS INTO l10n_co_dian — Intercept DIAN Send & Response
     # -------------------------------------------------------------------------
-    # These methods attempt to override the l10n_co_dian module's methods
-    # for sending to DIAN and processing responses. The exact method names
-    # may need adjustment after the first deployment depending on the
-    # actual implementation of l10n_co_dian in Odoo 19 Enterprise.
+    # These methods override l10n_co_dian's methods for sending to
+    # DIAN. Before calling super(), we swap PRE-INV → real DIAN name
+    # so the generated XML contains the correct invoice number.
+    # If the send fails with an exception, we restore PRE-INV.
     # -------------------------------------------------------------------------
 
     def _l10n_co_dian_post(self, *args, **kwargs):
         """Override l10n_co_dian's posting/sending method.
 
-        Injects license validation before the DIAN API call.
-        Falls through to super() if the method exists.
+        Swaps to real DIAN name before XML generation and
+        validates the Insotech license.
         """
         self._insotech_validate_license_before_dian()
-        if hasattr(super(), '_l10n_co_dian_post'):
-            return super()._l10n_co_dian_post(*args, **kwargs)
+        self._insotech_swap_to_dian_name()
+        try:
+            if hasattr(super(), '_l10n_co_dian_post'):
+                return super()._l10n_co_dian_post(
+                    *args, **kwargs
+                )
+        except Exception:
+            self._insotech_swap_to_pre_inv_name()
+            raise
         return True
 
     def _l10n_co_edi_send(self, *args, **kwargs):
         """Override l10n_co_edi's send method (alternative hook).
 
-        Injects license validation before the DIAN API call.
-        Falls through to super() if the method exists.
+        Swaps to real DIAN name before XML generation and
+        validates the Insotech license.
         """
         self._insotech_validate_license_before_dian()
-        if hasattr(super(), '_l10n_co_edi_send'):
-            return super()._l10n_co_edi_send(*args, **kwargs)
+        self._insotech_swap_to_dian_name()
+        try:
+            if hasattr(super(), '_l10n_co_edi_send'):
+                return super()._l10n_co_edi_send(
+                    *args, **kwargs
+                )
+        except Exception:
+            self._insotech_swap_to_pre_inv_name()
+            raise
         return True
 
     def _hook_invoice_document_before_pdf(self, *args, **kwargs):
-        """Override the Print & Send hook for DIAN document processing.
+        """Override the Print & Send hook for DIAN processing.
 
-        In Odoo 19, the Print & Send wizard (account_move_send) uses
-        hook methods to allow localization modules to inject logic
-        before generating the final PDF. We use this hook to:
-        1. Validate the Insotech license
-        2. After the response, process acceptance or rejection
-
-        Falls through to super() if the method exists.
+        In Odoo 19, the Print & Send wizard (account_move_send)
+        uses hook methods to allow localization modules to inject
+        logic before generating the final PDF.  We swap to the
+        real DIAN name so the XML contains the correct number.
         """
         self._insotech_validate_license_before_dian()
-        if hasattr(super(), '_hook_invoice_document_before_pdf'):
-            return super()._hook_invoice_document_before_pdf(
-                *args, **kwargs
-            )
+        self._insotech_swap_to_dian_name()
+        try:
+            if hasattr(
+                super(), '_hook_invoice_document_before_pdf'
+            ):
+                return super()._hook_invoice_document_before_pdf(
+                    *args, **kwargs
+                )
+        except Exception:
+            self._insotech_swap_to_pre_inv_name()
+            raise
         return True
 
     # -------------------------------------------------------------------------
