@@ -1,7 +1,7 @@
 # PARTE A: Trámites ante la DIAN (Portal MUISCA)
 
 > **Guía Maestra de Facturación Electrónica DIAN — Odoo 19**
-> Versión: 1.0 | Fecha: Marzo 2026
+> Versión: 2.0 | Fecha: Marzo 2026
 
 ---
 
@@ -12,13 +12,23 @@
 | A.1 | Actualización del RUT | Acceso MUISCA | RUT con código 52 |
 | A.2 | Certificado de Firma Digital | Presupuesto aprobado | Archivo `.p12` + contraseña |
 | A.3 | Registro en Portal de Habilitación | RUT actualizado | Cuenta activa en catalogo-vpfe |
-| A.4 | Software Propio: Credenciales | Registro completado | Software ID, PIN, Test Set ID |
-| A.5 | Solicitud de Resolución | Habilitación superada ⚠️ | Número de Resolución, prefijo, rangos |
-| A.6 | Asociar Rangos y Clave Técnica | Resolución otorgada | Clave Técnica por prefijo |
+| A.4 | Software Propio: Credenciales de Prueba | Registro completado | Software ID, PIN, Test Set ID |
+| A.5 | Solicitud de Resolución (Producción) | RUT actualizado | Número de Resolución, prefijo, rangos |
+| A.6 | Asociar Rangos y Clave Técnica | Resolución otorgada + Software habilitado | Clave Técnica por prefijo |
 | A.7 | Notas Normativas 2026 | — | Conocimiento actualizado |
 
 > [!TIP]
 > Guarde **todos** los datos que obtenga en cada paso en una hoja de cálculo segura. Los necesitará en la Parte B (Configuración en Odoo).
+
+> [!IMPORTANT]
+> **Dos entornos, dos portales.** La DIAN opera con un entorno de **Pruebas (Habilitación)** y otro de **Producción**. Cada uno tiene su propio portal, credenciales y prefijos. A lo largo de esta guía diferenciamos claramente cuál se usa en cada paso:
+>
+> | Aspecto | 🧪 Pruebas (Habilitación) | 🚀 Producción |
+> |---------|---------------------------|---------------|
+> | **Portal** | `catalogo-vpfe-hab.dian.gov.co` | `catalogo-vpfe.dian.gov.co` |
+> | **Prefijo** | `SETP` (asignado por la DIAN, no se puede cambiar) | El que usted elija (ej. `FE`) |
+> | **Resolución** | `18760000001` (genérica de pruebas) | La que le asignen en MUISCA |
+> | **Uso** | Completar el Set de Pruebas (50 docs) | Facturación real |
 
 ---
 
@@ -113,14 +123,18 @@ El portal de habilitación es el entorno de la DIAN donde su empresa se registra
 
 ### ¿Cuál es la URL?
 
-- **Portal de habilitación:** [catalogo-vpfe.dian.gov.co](https://catalogo-vpfe.dian.gov.co/User/Login)
+- **Portal de habilitación (pruebas):** [catalogo-vpfe-hab.dian.gov.co](https://catalogo-vpfe-hab.dian.gov.co)
+- **Portal de producción:** [catalogo-vpfe.dian.gov.co](https://catalogo-vpfe.dian.gov.co/User/Login)
 
 > [!IMPORTANT]
-> No confunda este portal con el MUISCA principal (`muisca.dian.gov.co`). Son portales diferentes con funciones distintas. El de habilitación (`catalogo-vpfe`) es donde se registra el software, se hacen pruebas y se asocian rangos. El MUISCA principal es donde se solicitan resoluciones de numeración.
+> No confunda estos portales con el MUISCA principal (`muisca.dian.gov.co`). Son portales diferentes con funciones distintas:
+> - **MUISCA** → Solicitar resoluciones de numeración (paso A.5)
+> - **Habilitación** (`catalogo-vpfe-hab`) → Registrar Software Propio, obtener credenciales de prueba, enviar Set de Pruebas
+> - **Producción** (`catalogo-vpfe`) → Asociar rangos de producción y obtener la Clave Técnica
 
 ### Paso a paso
 
-1. Ingrese a [catalogo-vpfe.dian.gov.co](https://catalogo-vpfe.dian.gov.co/User/Login).
+1. Ingrese a [catalogo-vpfe-hab.dian.gov.co](https://catalogo-vpfe-hab.dian.gov.co).
 2. Autentíquese con:
    - **NIT** de la empresa (sin dígito de verificación).
    - **Credenciales** del Representante Legal.
@@ -136,36 +150,67 @@ El portal de habilitación es el entorno de la DIAN donde su empresa se registra
 
 ---
 
-## A.4 Registro de "Software Propio" y Obtención de Credenciales
+## A.4 Registro de "Software Propio" y Obtención de Credenciales de Prueba
 
 ### ¿Qué es?
 
-Este es el paso donde le indica a la DIAN que **Odoo** será su sistema de facturación electrónica, operando bajo la modalidad de "Software Propio". La DIAN le entregará tres credenciales que Odoo necesita para comunicarse con sus servicios web.
+Este es el paso donde le indica a la DIAN que **Odoo** será su sistema de facturación electrónica, operando bajo la modalidad de "Software Propio". La DIAN le entregará credenciales para el **entorno de pruebas** que Odoo necesita para completar el proceso de certificación.
 
 > [!NOTE]
 > **¿Por qué "Software Propio"?** En Colombia existen dos modalidades de facturación electrónica:
-> 1. **Proveedor Tecnológico:** Usted contrata a un intermediario (Carvajal, Cadena, FacturaTech) que se encarga del envío. Tiene un costo mensual recurrente.
+> 1. **Proveedor Tecnológico:** Usted contrata a un intermediario (Carvajal, Cadena, SiigoIT, etc.) que se encarga del envío. Tiene un costo mensual recurrente.
 > 2. **Software Propio:** Su ERP (Odoo) se comunica directamente con la DIAN. Sin intermediarios. **Esta es la opción que usamos.**
 
 ### Paso a paso
 
-1. En el portal de habilitación ([catalogo-vpfe.dian.gov.co](https://catalogo-vpfe.dian.gov.co/User/Login)), navegue a **Configuración → Asociar Rangos de Prueba**.
+1. En el portal de **habilitación** ([catalogo-vpfe-hab.dian.gov.co](https://catalogo-vpfe-hab.dian.gov.co)), navegue a **Configuración → Configurar modos de operación**.
 2. Seleccione el modo de operación: **Software Propio**.
-3. Al guardar, la plataforma DIAN le generará tres datos críticos:
+3. Haga clic en **"Asociar"**.
 
-| Dato | Qué es | Ejemplo | Dónde lo usará en Odoo |
-|------|--------|---------|------------------------|
-| **Software ID** | Identificador único de su software ante la DIAN | `a3d6c1b2-4e5f-...` (UUID largo) | Ajustes → Facturación Electrónica → Modos de Operación |
-| **Software PIN** | PIN numérico de su software | `12345` (en pruebas) | Ajustes → Facturación Electrónica → Modos de Operación |
-| **Test Set ID** | Identificador del set de pruebas | `f8c2e1d9a7...` (hash alfanumérico) | Ajustes → Facturación Electrónica → Testing ID |
+![Configuración de modo de operación — Software propio registrado con estado "En proceso"](./capturas/A4_01_modo_operacion_software_propio.png)
 
-4. **Copie los tres datos y guárdelos inmediatamente** en su hoja de datos segura.
+4. Al guardar, la plataforma DIAN le generará las credenciales de prueba. Haga clic en el ícono de **"Rangos de prueba"** (📋) de la fila correspondiente para ver el detalle completo:
+
+![Detalle del Set de Pruebas — prefijo SETP, resolución de prueba y clave técnica](./capturas/A4_03_set_pruebas_detalle_completo.png)
+
+5. **Copie estos datos y guárdelos inmediatamente:**
+
+| Dato | Qué es | Ejemplo real (pruebas) | Dónde lo usará en Odoo |
+|------|--------|------------------------|------------------------|
+| **Software ID** | Identificador único de su software ante la DIAN | `edbc67c-0baf-4d31-999b-248d742ea430` | Ajustes → Habilitación DIAN |
+| **Software PIN** | PIN numérico de su software | `12345` | Ajustes → Habilitación DIAN |
+| **Test Set ID** | Identificador del set de pruebas | `d546b61f-3214-45f4-b654-85fbc3f742fe` | Ajustes → Habilitación DIAN |
+| **Clave Técnica (pruebas)** | Hash para firmar documentos de prueba | `fc8eac422eba16e22ffd8c6f94b3f40a6e38162c` | Diario temporal de pruebas |
+
+> [!IMPORTANT]
+> **Datos de prueba vs. Producción.** Las credenciales que obtiene aquí son exclusivas del entorno de **pruebas**. Observe los datos asignados automáticamente por la DIAN para el set de pruebas — son fijos y **no se pueden cambiar**:
+>
+> | Dato (pruebas) | Valor fijo |
+> |----------------|------------|
+> | Prefijo | `SETP` |
+> | Nro. Resolución | `18760000001` |
+> | Rango desde | `990000000` |
+> | Rango hasta | `995000000` |
+
+![Tabla de rangos de prueba mostrando el prefijo SETP asignado por la DIAN](./capturas/A4_02_rangos_prueba_SETP.png)
+
+### 🔧 Módulo `insotech_dian_wizard`
+
+El módulo **Insotech DIAN Setup Wizard** (`insotech_dian_wizard`) simplifica este proceso desde Odoo. En lugar de navegar por múltiples secciones de Ajustes, el wizard captura Software ID, PIN y Test Set ID en un solo formulario:
+
+**Acceso:** Contabilidad → Configuración → Habilitación DIAN
+
+El wizard almacena los datos en la empresa (`res.company`) y gestiona un flujo de estados:
+- **Sin Configurar** → **En Proceso** → **Habilitado**
+
+Consulte la [Documentación Técnica del Wizard](../../Documentacion/insotech_dian_wizard/DOCUMENTACION_TECNICA.md) para más detalles.
 
 ### Verificación
 
 - [ ] Ha copiado y guardado el **Software ID**.
 - [ ] Ha copiado y guardado el **Software PIN**.
 - [ ] Ha copiado y guardado el **Test Set ID**.
+- [ ] Ha copiado y guardado la **Clave Técnica de pruebas**.
 - [ ] Puede volver a consultar estos datos en el portal si los necesita.
 
 > [!CAUTION]
@@ -175,52 +220,81 @@ Este es el paso donde le indica a la DIAN que **Odoo** será su sistema de factu
 
 ## A.5 Solicitud de Resolución de Facturación (Para Producción)
 
-> [!WARNING]
-> **⏱️ Este paso se realiza DESPUÉS de superar el Set de Pruebas** (Fase 6 de la Parte B). Lo documentamos aquí para que conozca el flujo completo de trámites ante la DIAN, pero **no lo ejecute aún** hasta haber completado la habilitación exitosamente.
-
 ### ¿Qué es?
 
 La Resolución de Facturación es la autorización oficial de la DIAN para que su empresa emita facturas electrónicas dentro de un rango numérico específico y un periodo de vigencia definido. Sin resolución vigente, no puede facturar legalmente.
 
+> [!NOTE]
+> **¿Cuándo hacer este paso?** La solicitud de resolución se realiza en el portal MUISCA (no en habilitación) y puede hacerse en **cualquier momento** — antes o después de completar el Set de Pruebas. Sin embargo, la resolución solo podrá asociarse a su software una vez que este pase a estado **"Aceptado"** en el portal de habilitación.
+
 ### Paso a paso
 
-1. Ingrese al portal principal de **MUISCA**: [muisca.dian.gov.co](https://muisca.dian.gov.co) (el de producción, **no** el de habilitación).
+1. Ingrese al portal principal de **MUISCA**: [muisca.dian.gov.co](https://muisca.dian.gov.co).
 2. Navegue a **Facturación → Numeración de Facturación → Solicitud de Numeración**.
-3. Solicite una nueva **Resolución de Facturación Electrónica**.
+
+![Pantalla de Numeración de Facturación en MUISCA — consulta de solicitudes](./capturas/A5_01_muisca_numeracion_facturacion.png)
+
+3. Haga clic en **"Autorizar Rangos"** (botón verde en la parte inferior).
 4. Complete los campos requeridos:
 
 | Campo | Qué poner | Ejemplo |
-|-------|-----------|---------|
+|-------|-----------| --------|
 | **Prefijo** | Letras que identificarán sus facturas | `FE` |
+| **Tipo Facturación** | Factura Electrónica de Venta | Seleccionar del menú |
 | **Rango Desde** | Primer número de la serie | `1` |
 | **Rango Hasta** | Último número de la serie | `5000` |
 
-5. La DIAN asignará automáticamente:
-   - **Número de Resolución** (ej. `18764000000001`).
-   - **Fecha de inicio** y **fecha de fin** de vigencia (generalmente 2 años).
-6. **Descargue o imprima** la resolución otorgada.
+![Formulario de Solicitud de Autorización de Rangos con datos FE 1-5000](./capturas/A5_02_formulario_rango_FE.png)
+
+5. Haga clic en **"Agregar"** para añadir el rango a la solicitud.
+
+![Rango FE agregado a la tabla de solicitud, listo para guardar como borrador](./capturas/A5_03_rango_agregado_borrador.png)
+
+6. Haga clic en **"Borrador"** para guardar la solicitud.
+
+![Confirmación: el documento ha sido guardado de forma exitosa](./capturas/A5_04_borrador_guardado_exitoso.png)
+
+7. Haga clic en **"Aceptar"** para cerrar el popup, luego en **"Definitivo"** para formalizar la solicitud.
+
+![Solicitud en estado DEFINITIVO con botón "Firmar" disponible](./capturas/A5_05_solicitud_definitivo_firmar.png)
+
+8. Haga clic en **"Firmar"** para firmar electrónicamente la solicitud. La DIAN procesará la solicitud y asignará el número de resolución.
+
+> [!WARNING]
+> **No haga clic en "Anular"** — eso cancela toda la solicitud y deberá repetir el proceso.
+
+9. La DIAN asignará automáticamente:
+
+![Resolución aprobada — Solicitud 19164316, Resolución 18764107498052](./capturas/A5_06_resolucion_aprobada.png)
+
+| Dato obtenido | Ejemplo real |
+|---------------|--------------|
+| **Nro. de Solicitud** | `19164316` |
+| **Número de Resolución** | `18764107498052` |
+| **Fecha de Autorización** | 22/03/2026 |
+| **Estado** | DEFINITIVO ✅ |
+
+10. **Descargue o imprima** la resolución otorgada — haga clic en el número de resolución para ver el detalle con fechas de vigencia.
 
 ### ¿Necesita resoluciones adicionales?
-
-Dependiendo de su operación, puede necesitar múltiples resoluciones:
 
 | Tipo de documento | ¿Necesita resolución propia? | Prefijo sugerido |
 |---|---|---|
 | Factura de Venta Electrónica | ✅ Siempre | `FE` |
-| Nota Crédito Electrónica | ⚠️ Consulte con su contador (puede compartir resolución con FE) | `NC` |
-| Nota Débito Electrónica | ⚠️ Consulte con su contador | `ND` |
+| Nota Crédito Electrónica | ❌ No — usa la misma resolución de la factura de venta | — |
+| Nota Débito Electrónica | ❌ No — usa la misma resolución de la factura de venta | — |
 | Documento Soporte (compras a no obligados) | ✅ Sí, resolución independiente | `DS` |
 | Factura de Exportación | ✅ Si exporta, resolución separada | `FEX` |
 
 > [!TIP]
-> **Recomendación práctica:** Para una empresa típica que vende en Colombia y compra a personas naturales no obligadas a facturar, necesitará al menos **dos resoluciones**: una para Facturas de Venta (`FE`) y otra para Documentos Soporte (`DS`).
+> **Práctica estándar en Odoo:** Las Notas Crédito y Notas Débito **no requieren resolución independiente**. Odoo genera estos documentos referenciando la factura original y comparten la misma resolución de facturación. Solo necesita resolución separada si su contador lo indica explícitamente.
 
 ### Verificación
 
 - [ ] Tiene el número de resolución anotado.
 - [ ] Conoce el prefijo, rango desde, rango hasta.
 - [ ] Conoce las fechas de inicio y fin de vigencia.
-- [ ] Si aplica, tiene resolución(es) adicional(es) para DS, NC, etc.
+- [ ] Si aplica, tiene resolución(es) adicional(es) para DS, FEX.
 
 ---
 
@@ -230,39 +304,61 @@ Dependiendo de su operación, puede necesitar múltiples resoluciones:
 
 La Clave Técnica es un hash criptográfico que la DIAN genera al vincular un prefijo de resolución con su software. Es un dato **obligatorio** para que Odoo pueda firmar y enviar facturas en producción. Sin la Clave Técnica, Odoo no puede generar el CUFE (Código Único de Factura Electrónica).
 
+> [!IMPORTANT]
+> **Requisito previo:** Este paso solo puede completarse cuando:
+> 1. Su software tiene estado **"Aceptado"** en el portal de habilitación (Set de Pruebas completado).
+> 2. La resolución de producción (paso A.5) ya fue aprobada y se sincronizó con el portal de producción.
+>
+> La sincronización entre MUISCA y el portal de producción puede tomar desde **unos minutos hasta unas horas**.
+
 ### Paso a paso
 
-1. Regrese al portal de habilitación: [catalogo-vpfe.dian.gov.co](https://catalogo-vpfe.dian.gov.co/User/Login).
-2. Navegue a **Facturando Electrónicamente → Configuración → Asociar Rangos de Numeración**.
-3. Vincule cada prefijo autorizado a la resolución correspondiente:
-   - Seleccione la resolución (ej. `18764000000001`).
-   - Asocie el prefijo (ej. `FE`).
-   - Defina el rango de numeración.
-4. Al guardar, la DIAN generará una **Clave Técnica** para cada prefijo.
-5. **Copie la Clave Técnica inmediatamente** — la necesitará en la configuración de diarios de Odoo.
+1. Ingrese al portal de **producción**: [catalogo-vpfe.dian.gov.co](https://catalogo-vpfe.dian.gov.co/User/Login) (⚠️ producción, **no** habilitación).
+2. Navegue a **Configuración → Gestionar Asociación de Prefijos**.
+3. Seleccione su **Proveedor - Software** en el dropdown (debe ser el software con estado "Aceptado").
+4. Seleccione el **Prefijo** que desea asociar (ej. `FE - 18764107498052`).
+
+![Selección de prefijo en el portal de producción — dropdown con resoluciones disponibles](./capturas/A6_01_asociar_prefijos_dropdown.png)
+
+> [!WARNING]
+> **Verifique el software correcto.** Si tiene múltiples registros de software (ej. "Odoo" antiguo y "Odoov19" nuevo), asegúrese de seleccionar el software **correcto y habilitado**. Asociar el prefijo al software equivocado causará que las facturas sean rechazadas.
+
+5. Verifique que los datos sean correctos:
+
+![Formulario con NIT, nombre, proveedor de software y prefijo FE seleccionados](./capturas/A6_02_asociar_prefijo_FE_seleccionado.png)
+
+6. Haga clic en **"Agregar"**.
+7. La asociación se completará y aparecerá en la tabla de resultados:
+
+![Asociación completada — Software ODOO, prefijo FE, fechas de vigencia 22/03/2026 al 21/03/2028](./capturas/A6_03_asociacion_completada.png)
+
+8. **Haga clic sobre la fila** para ver el detalle y obtener la **Clave Técnica** (un hash alfanumérico largo).
+9. **Copie la Clave Técnica inmediatamente** — la necesitará en la configuración de diarios de Odoo.
 
 ### Datos obtenidos — Tabla de referencia
 
 Para cada prefijo que haya asociado, debería tener un registro como este:
 
-| Dato | Ejemplo |
-|------|---------|
-| **Número de Resolución** | `18764000000001` |
+| Dato | Ejemplo real (Producción) |
+|------|--------------------------|
+| **Número de Resolución** | `18764107498052` |
 | **Prefijo** | `FE` |
 | **Rango Desde** | `1` |
 | **Rango Hasta** | `5000` |
-| **Fecha Inicio Vigencia** | `2026-01-01` |
-| **Fecha Fin Vigencia** | `2028-01-01` |
-| **Clave Técnica** | `fc8eac422eba16...` (hash alfanumérico largo) |
+| **Fecha Asociación** | `22/03/2026` |
+| **Fecha Expiración** | `21/03/2028` |
+| **Software ID (producción)** | `a354bb6a-2038-4d40-9024-9cce30c665b1` |
+| **Clave Técnica** | *(hash alfanumérico largo — se obtiene al hacer clic en la fila)* |
 
 > [!IMPORTANT]
-> **Repita este proceso para cada tipo de documento** que vaya a emitir. Si tiene resoluciones para FE, NC, ND y DS, necesita asociar los rangos y obtener la Clave Técnica para cada uno.
+> **Repita este proceso para cada tipo de documento** que vaya a emitir. Si tiene resoluciones para FE y DS, necesita asociar los rangos y obtener la Clave Técnica para cada uno.
 
 ### Verificación
 
 - [ ] Cada prefijo tiene su Clave Técnica anotada.
 - [ ] Los rangos de numeración coinciden con lo que solicitó en A.5.
 - [ ] Las fechas de vigencia están registradas.
+- [ ] Verificó que asoció al software **correcto** (no al antiguo).
 
 ---
 
@@ -297,23 +393,34 @@ Para empresas con fallas tecnológicas comprobables, la DIAN autoriza una ventan
 
 ## Resumen: Datos Obtenidos en la Parte A
 
-Al completar todos los pasos de esta parte debe tener los siguientes datos listos para la configuración en Odoo (Parte B):
+Al completar todos los pasos de esta parte debe tener los siguientes datos organizados en **dos tablas**, una para cada entorno:
 
-| # | Dato | Obtenido en paso | ¿Lo tiene? |
-|---|------|-------------------|------------|
-| 1 | RUT actualizado (PDF) con código 52 | A.1 | ☐ |
-| 2 | Archivo `.p12` (certificado digital) | A.2 | ☐ |
-| 3 | Contraseña del certificado `.p12` | A.2 | ☐ |
-| 4 | Fecha de vencimiento del certificado | A.2 | ☐ |
-| 5 | Acceso al portal de habilitación | A.3 | ☐ |
-| 6 | Software ID | A.4 | ☐ |
-| 7 | Software PIN | A.4 | ☐ |
-| 8 | Test Set ID | A.4 | ☐ |
-| 9 | Número(s) de Resolución | A.5 ⚠️ | ☐ |
-| 10 | Prefijo(s) y Rangos | A.5 ⚠️ | ☐ |
-| 11 | Clave(s) Técnica(s) | A.6 ⚠️ | ☐ |
+### Datos para Entorno de Pruebas (Habilitación)
 
-> Los ítems marcados con ⚠️ se obtienen **después** de superar el Set de Pruebas (Parte B, Fase 6).
+| # | Dato | Obtenido en paso | Ejemplo | ¿Lo tiene? |
+|---|------|-------------------|---------|------------|
+| 1 | Software ID (pruebas) | A.4 | `edbc67c-0baf-...` | ☐ |
+| 2 | Software PIN | A.4 | `12345` | ☐ |
+| 3 | Test Set ID | A.4 | `d546b61f-3214-...` | ☐ |
+| 4 | Clave Técnica (pruebas) | A.4 | `fc8eac422eba16...` | ☐ |
+| 5 | Prefijo de pruebas | A.4 (fijo) | `SETP` | ☐ |
+| 6 | Resolución de pruebas | A.4 (fijo) | `18760000001` | ☐ |
+
+### Datos para Entorno de Producción
+
+| # | Dato | Obtenido en paso | Ejemplo | ¿Lo tiene? |
+|---|------|-------------------|---------|------------|
+| 1 | RUT actualizado (PDF) con código 52 | A.1 | — | ☐ |
+| 2 | Archivo `.p12` (certificado digital) | A.2 | — | ☐ |
+| 3 | Contraseña del certificado `.p12` | A.2 | — | ☐ |
+| 4 | Número(s) de Resolución | A.5 | `18764107498052` | ☐ |
+| 5 | Prefijo(s) y Rangos | A.5 | `FE` 1-5000 | ☐ |
+| 6 | Software ID (producción) | A.6 | `a354bb6a-2038-...` | ☐ |
+| 7 | Clave(s) Técnica(s) | A.6 | *(hash largo)* | ☐ |
+| 8 | Fechas de vigencia | A.5 / A.6 | 22/03/2026 – 21/03/2028 | ☐ |
+
+> [!WARNING]
+> **No confunda las credenciales de prueba con las de producción.** El Software ID y la Clave Técnica son **diferentes** en cada entorno. Usar credenciales de prueba en producción (o viceversa) causará rechazo total de la DIAN.
 
 ---
 

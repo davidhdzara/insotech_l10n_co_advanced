@@ -27,13 +27,19 @@ Aquí se enlista la documentación técnica histórica recabada a lo largo del d
 
 ### Contabilidad y Productos
 - [Parametrización de Productos y Contabilidad InSoTech](parametrizacion-productos-contabilidad-insotech.md) // `Accounting`, `Products`, `Pricing`
+- [**Habilitación DIAN — Facturación Electrónica (Software Propio)**](dian-habilitacion-facturacion-electronica.md) // `DIAN`, `e-invoice`, `UBL`, `SOAP` // 📝⭐⭐⭐⭐⭐
 
 ### 🆕 Migración y Compatibilidad V19 (SaaS Server)
 - [sale_subscription como dependencia rompe builds con l10n_co](odoo-v19-sale-subscription-l10n-co-build-fail.md) // `Build`, `l10n_co`, `Dependencies` // 📝⭐⭐⭐⭐⭐
 - [category_id eliminado de res.groups — usar privilege_id](odoo-v19-privilege-id-replaces-category-id.md) // `Security`, `Groups`, `Migration` // 📝⭐⭐⭐⭐⭐
 - [_sql_constraints eliminado — usar models.Constraint con prefijo _](odoo-v19-models-constraint-underscore-prefix.md) // `ORM`, `Constraints`, `Migration` // 📝⭐⭐⭐⭐⭐
 - [Deprecaciones en Controllers (jsonrpc) y Search Views (group attrs)](odoo-v19-controller-jsonrpc-search-view-group.md) // `Controllers`, `Views`, `Deprecation` // 📝⭐⭐⭐⭐
+- [**type='http' vs type='jsonrpc' para APIs REST con JSON plano**](odoo-v19-type-http-vs-jsonrpc-api-rest.md) // `Controllers`, `API`, `REST` // 📝⭐⭐⭐⭐⭐
 - [mail.thread obligatorio para chatter y tracking](odoo-v19-mail-thread-chatter-tracking.md) // `mail`, `tracking`, `chatter` // 📝⭐⭐⭐
+- [Campos removidos de ir.cron en V19 (numbercall, state, priority)](odoo-v19-ir-cron-numbercall-removed.md) // `Cron`, `Migration` // 📝⭐⭐⭐
+
+### Plataforma Odoo.sh
+- [Cada push a rama dev genera nueva URL en Odoo.sh](odoo-sh-dev-branch-url-changes-per-push.md) // `Odoo.sh`, `Dev`, `URL` // 📝⭐⭐⭐
 
 ---
 ## Leyenda Blog Potential

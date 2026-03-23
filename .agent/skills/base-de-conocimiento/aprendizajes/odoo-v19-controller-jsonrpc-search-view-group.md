@@ -30,7 +30,7 @@ En V19, los atributos `expand` y `string` fueron **eliminados** del elemento `<g
 # Controller — ANTES ❌
 @http.route('/mi/ruta', type='json', auth='none')
 
-# Controller — DESPUÉS ✅
+# Controller — DESPUÉS ✅ (para comunicación interna OWL/JS)
 @http.route('/mi/ruta', type='jsonrpc', auth='none')
 ```
 
@@ -46,8 +46,16 @@ En V19, los atributos `expand` y `string` fueron **eliminados** del elemento `<g
 </group>
 ```
 
+> [!CAUTION]
+> **`type='jsonrpc'` NO sirve para APIs REST externas.**
+> Si el cliente envía JSON plano (`requests.post(url, json=payload)`),
+> usa `type='http'` con `json.loads(request.httprequest.data)`.
+> Ver: [type='http' vs type='jsonrpc' para APIs REST](odoo-v19-type-http-vs-jsonrpc-api-rest.md)
+
 ## 💡 Buenas Prácticas / Cómo evitarlo
-- **Buscar/Reemplazar global**: `type='json'` → `type='jsonrpc'` en todos los controllers al migrar.
+- **`type='jsonrpc'`** → solo para comunicación con OWL/JS interno de Odoo (`rpc()`)
+- **`type='http'`** → para APIs REST que reciben JSON plano de clientes externos
+- **Buscar/Reemplazar global**: `type='json'` → `type='jsonrpc'` al migrar (excepto APIs REST)
 - **En search views**: eliminar `expand` y `string` de TODOS los `<group>`.
 - **Validar XML**: Los errores RELAXNG en V19 son fatales. Un solo atributo inválido puede matar el registry completo.
 
