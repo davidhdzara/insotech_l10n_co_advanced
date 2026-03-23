@@ -4,8 +4,8 @@
     <record id="view_account_journal_form_dian_manual" model="ir.ui.view">
         <field name="name">account.journal.form.dian.manual</field>
         <field name="model">account.journal</field>
-        <field name="inherit_id" ref="l10n_co_dian.view_account_journal_form"/>
-        <field name="priority">99</field>
+        <field name="inherit_id" ref="account.view_account_journal_form"/>
+        <field name="priority">100</field>
         <field name="arch" type="xml">
             <xpath expr="//button[@name='button_l10n_co_dian_fetch_numbering_range']"
                    position="after">
