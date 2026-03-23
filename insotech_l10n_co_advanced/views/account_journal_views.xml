@@ -1,14 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Deactivate the previously installed custom view that added
-         an invasive "Configurar Manualmente" button to the journal
-         form. Deleting the XML file alone does not remove the
-         ir.ui.view record from the database; we must explicitly
-         set active=False so the view stops rendering on update. -->
-    <record id="view_account_journal_form_dian_manual"
-            model="ir.ui.view">
-        <field name="active" eval="False"/>
-    </record>
 
     <!-- ============================================================ -->
     <!-- Journal form: DIAN Resolution Counter Section                -->
