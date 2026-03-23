@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_insotech_dian" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.insotech.dian</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app string="Habilitación DIAN" name="insotech_dian_wizard">
+                    <block title="Datos de Habilitación DIAN"
+                           name="insotech_dian_config_container">
+                        <setting help="ID del software registrado en el portal DIAN."
+                                 id="insotech_dian_setting_software_id">
+                            <label for="insotech_dian_software_id"/>
+                            <div class="text-muted">
+                                Identificador único asignado por la DIAN al software de facturación.
+                            </div>
+                            <field name="insotech_dian_software_id"
+                                   placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"/>
+                        </setting>
+                        <setting help="PIN del software asignado en el portal DIAN."
+                                 id="insotech_dian_setting_software_pin">
+                            <label for="insotech_dian_software_pin"/>
+                            <div class="text-muted">
+                                PIN de 5 dígitos asignado por la DIAN al software de facturación.
+                            </div>
+                            <field name="insotech_dian_software_pin"
+                                   placeholder="12345"
+                                   password="True"/>
+                        </setting>
+                        <setting help="Test Set ID para el proceso de certificación DIAN."
+                                 id="insotech_dian_setting_test_set_id">
+                            <label for="insotech_dian_test_set_id"/>
+                            <div class="text-muted">
+                                Identificador del set de pruebas para enviar documentos de habilitación.
+                            </div>
+                            <field name="insotech_dian_test_set_id"
+                                   placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"/>
+                        </setting>
+                    </block>
+                    <block title="Estado" name="insotech_dian_state_container">
+                        <setting help="Estado actual de la habilitación DIAN para esta empresa."
+                                 id="insotech_dian_setting_state">
+                            <label for="insotech_dian_config_state"/>
+                            <field name="insotech_dian_config_state"/>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+</odoo>
