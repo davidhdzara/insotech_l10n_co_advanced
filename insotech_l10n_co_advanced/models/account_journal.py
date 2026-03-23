@@ -214,7 +214,7 @@ class AccountJournal(models.Model):
         self.ensure_one()
         company = self.company_id or self.env.company
         original_vat = company.vat or ''
-        dv = company.l10n_co_verification_code or ''
+        dv = getattr(company, 'l10n_co_verification_code', '') or ''
         sanitized = False
 
         # --- Fix 401: strip DV from vat if concatenated ---
