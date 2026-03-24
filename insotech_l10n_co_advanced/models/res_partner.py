@@ -61,23 +61,36 @@ class ResPartner(models.Model):
 
     @api.depends('vat', 'l10n_latam_identification_type_id')
     def _compute_l10n_co_verification_code(self):
-        """Auto-compute DV only when identification type is NIT."""
+        """Auto-compute DV only when identification type is NIT.
+
+        Note: This runs on ALL partners during module upgrade.
+        Must handle gracefully: no id_type, no vat, missing fields.
+        """
         for partner in self:
-            id_type = partner.l10n_latam_identification_type_id
-            # NIT is identified by l10n_co_document_code == '31'
-            # or the external ID 'l10n_co.dt_NIT'
-            is_nit = (
-                getattr(id_type, 'l10n_co_document_code', '') == '31'
-            )
+            try:
+                id_type = partner.l10n_latam_identification_type_id
+                is_nit = bool(
+                    id_type
+                    and getattr(id_type, 'l10n_co_document_code', '')
+                    == '31'
+                )
+            except Exception:
+                # Field might not exist yet during install
+                is_nit = False
+
             if is_nit and partner.vat:
-                # Strip any non-digit characters (dashes, spaces)
-                clean_vat = ''.join(c for c in partner.vat if c.isdigit())
+                clean_vat = ''.join(
+                    c for c in (partner.vat or '') if c.isdigit()
+                )
                 dv = _compute_verification_digit(clean_vat)
-                if dv and partner.l10n_co_verification_code != dv:
-                    partner.l10n_co_verification_code = dv
-                elif not dv:
+                partner.l10n_co_verification_code = dv or ''
+            elif is_nit and not partner.vat:
+                # NIT type selected but no VAT yet — keep existing
+                partner.l10n_co_verification_code = (
+                    partner.l10n_co_verification_code or ''
+                )
+            else:
+                # Not NIT or no id_type — don't overwrite manually
+                # entered values for non-Colombian partners
+                if not partner.l10n_co_verification_code:
                     partner.l10n_co_verification_code = ''
-            elif not is_nit:
-                # Not NIT → clear DV
-                partner.l10n_co_verification_code = ''
-            # If NIT but no VAT, don't touch existing value
