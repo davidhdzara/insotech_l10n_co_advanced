@@ -25,6 +25,7 @@
         'account',
         'product',
         'l10n_co_dian',
+        'insotech_core',
     ],
     'external_dependencies': {
         'python': ['lxml', 'cryptography', 'requests'],
