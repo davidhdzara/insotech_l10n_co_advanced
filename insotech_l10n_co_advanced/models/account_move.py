@@ -482,33 +482,43 @@ class AccountMove(models.Model):
                 })
 
                 # ── Capa 1: Persist last consecutive ──
-                # Extract the DIAN number from the name
-                # (e.g. FE3 → 3, FEGU5003 → 5003)
-                num_match = re.search(
-                    r'(\d+)\s*$', dian_name
+                # Only persist if the invoice has a CUFE
+                # (proof of real DIAN acceptance, not force-accept)
+                cufe = getattr(
+                    move, 'l10n_co_edi_cufe_cude_ref', None
                 )
-                if num_match:
-                    dian_num = int(num_match.group(1))
-                    param_key = (
-                        'insotech.dian.last_consecutive.%d'
-                        % move.journal_id.id
+                if not cufe:
+                    _logger.info(
+                        "Insotech: Skipping Capa 1 persist for "
+                        "move %s — no CUFE (force-accepted?)",
+                        move.id,
                     )
-                    current = int(
-                        self.env[
-                            'ir.config_parameter'
-                        ].sudo().get_param(param_key, '0')
+                else:
+                    num_match = re.search(
+                        r'(\d+)\s*$', dian_name
                     )
-                    if dian_num > current:
-                        self.env[
-                            'ir.config_parameter'
-                        ].sudo().set_param(
-                            param_key, str(dian_num)
+                    if num_match:
+                        dian_num = int(num_match.group(1))
+                        param_key = (
+                            'insotech.dian.last_consecutive.%d'
+                            % move.journal_id.id
                         )
-                        _logger.info(
-                            "Insotech: Persisted last DIAN "
-                            "consecutive for journal %d: %d",
-                            move.journal_id.id, dian_num,
+                        current = int(
+                            self.env[
+                                'ir.config_parameter'
+                            ].sudo().get_param(param_key, '0')
                         )
+                        if dian_num > current:
+                            self.env[
+                                'ir.config_parameter'
+                            ].sudo().set_param(
+                                param_key, str(dian_num)
+                            )
+                            _logger.info(
+                                "Insotech: Persisted last DIAN "
+                                "consecutive for journal %d: %d",
+                                move.journal_id.id, dian_num,
+                            )
 
                 # Log in chatter
                 move.message_post(
@@ -673,6 +683,30 @@ class AccountMove(models.Model):
             prefix = (journal.code or '').strip()
 
             if dian_num <= last_dian:
+                # Verify the blocking consecutive has CUFE
+                # (was actually sent to DIAN, not force-accepted)
+                blocking_moves = self.env['account.move'].search([
+                    ('journal_id', '=', journal.id),
+                    ('state', '=', 'posted'),
+                    ('insotech_dian_status', '=', 'accepted'),
+                    ('name', '=like', '%s%%' % prefix),
+                ], limit=100)
+                has_cufe = any(
+                    getattr(m, 'l10n_co_edi_cufe_cude_ref', None)
+                    for m in blocking_moves
+                    if re.search(r'(\d+)\s*$', m.name or '')
+                    and int(
+                        re.search(r'(\d+)\s*$', m.name).group(1)
+                    ) >= dian_num
+                )
+                if not has_cufe:
+                    _logger.info(
+                        "Insotech: Capa 2 skip — consecutive %d "
+                        "has no CUFE-backed invoice, allowing.",
+                        dian_num,
+                    )
+                    continue
+
                 next_available = last_dian + 1
                 raise UserError(_(
                     "⚠️ El consecutivo %s%d ya fue enviado a la "
