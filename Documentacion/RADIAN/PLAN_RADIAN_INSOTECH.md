@@ -15,6 +15,120 @@ Documentación exhaustiva de eventos RADIAN, normativa DIAN, análisis de compet
 
 ---
 
+## Sprint 0 — Infraestructura Base ✅ COMPLETADO (2026-03-24)
+
+> **Commits:** `cc5234a` (dev), `1093dbd` (staging)
+> **Módulo afectado:** `insotech_dian_wizard`
+
+### QW2: Alerta de Vencimiento de Certificado Digital
+**Archivos:**
+- `models/res_company.py` — 3 campos computados + método CRON
+- `data/cron_certificate_expiry.xml` — CRON diario V19
+
+**Cómo funciona:**
+1. Campo `insotech_dian_cert_expiry_date` (Date, stored, computed) parsea el `.p12` con `cryptography.hazmat.primitives.serialization.pkcs12`
+2. Campo `insotech_dian_cert_days_remaining` (Integer, computed) calcula `(expiry - today).days`
+3. CRON diario `_cron_check_certificate_expiry()` busca empresas con certificado y alerta en 3 niveles:
+   - 🟢 ≤90 días → aviso
+   - 🟡 ≤30 días → advertencia
+   - 🔴 ≤7 días → urgente
+4. Publica en el **chatter de `res.company`** vía `message_post()`
+
+**Compatibilidad:** Usa `getattr(cert, 'not_valid_after_utc', cert.not_valid_after)` para soportar `cryptography < 42.0`.
+
+### QW3: Selector Vocación de Circulación
+**Archivos:**
+- `models/res_company.py` — campo `insotech_radian_mode` (Selection)
+- `models/res_config_settings.py` — campo related para UI
+- `views/res_config_settings_views.xml` — bloques UI en Ajustes → InSoTech
+
+**Opciones:** `disabled` | `manual` (default) | `all_credit`
+
+**UI visible en:** Ajustes → InSoTech → Configuración RADIAN
+
+---
+
+## Sprint 1 — Aceptación Tácita + Bloqueo NC/ND ✅ COMPLETADO (2026-03-24)
+
+> **Commits:** `729be07` (dev), `44a0e4c` (staging)
+> **Módulo afectado:** `insotech_l10n_co_advanced` (v19.0.1.4.0)
+
+### Componente 1: Calculadora de Días Hábiles Colombianos
+**Archivo:** `services/colombian_calendar.py`
+
+Módulo Python puro (sin dependencia de Odoo). Implementa:
+
+```python
+get_colombian_holidays(year)  # → set[date] (18 festivos)
+is_business_day(dt, extra_holidays=None)  # → bool
+add_business_days(start, n, extra_holidays=None)  # → date
+```
+
+**Algoritmo de festivos:**
+- **6 fijos:** 1 ene, 1 may, 20 jul, 7 ago, 8 dic, 25 dic
+- **7 Ley Emiliani** (se mueven al lunes): Reyes, San José, San Pedro, Asunción, Raza, Santos, Cartagena
+- **5 dependientes de Pascua:** Jueves/Viernes Santo, Ascensión, Corpus Christi, Sagrado Corazón
+- Pascua calculada con **algoritmo anónimo gregoriano** (Gauss)
+- **Cero mantenimiento** — funciona para cualquier año pasado o futuro
+
+**Base legal:** Art. 62, Ley 4 de 1913 (días hábiles); Ley 51 de 1983 (festivos colombianos)
+
+### Componente 2: Modelo `insotech.radian.event`
+**Archivo:** `models/radian_event.py`
+
+Modelo propio (NO modifica `account.move`). Hereda `mail.thread`.
+
+| Campo | Tipo | Uso |
+|-------|------|-----|
+| `move_id` | Many2one → account.move | Factura referenciada |
+| `event_code` | Selection | 030/031/032/033/034 |
+| `state` | Selection | draft/done/sent/accepted/error |
+| `source` | Selection | manual/cron/portal |
+| `claim_code` | Selection | Solo para 031 (códigos 01-04) |
+| `xml_content` | Text | XML generado (dry run) |
+| `notes` | Text | Motivo/detalle del evento |
+
+**CRON `_cron_tacit_acceptance()`** (diario):
+1. Busca eventos 030 en estado done/sent/accepted
+2. Para cada uno, verifica que NO exista 033/034/031 en la misma factura
+3. Calcula `add_business_days(fecha_030, 3)` usando festivos + custom holidays
+4. Si `hoy > deadline` → crea evento 034 (dry run) + post en chatter
+
+### Componente 3: Modelo `insotech.custom.holiday`
+**Archivo:** `models/insotech_custom_holiday.py`
+
+Modelo simple: `name` (Char) + `date` (Date) + `company_id` (Many2one).
+El CRON consulta estos festivos y los une con `set | set` al resultado del algoritmo → duplicados se ignoran automáticamente.
+
+### Componente 4: Bloqueo NC/ND por Irrevocabilidad
+**Archivo:** `models/account_move.py` — método `_insotech_check_radian_irrevocability()`
+
+Se ejecuta **antes** de `super()._post()` en el override existente. Lógica:
+1. Solo aplica a `move_type == 'out_refund'`
+2. Busca la factura original vía `reversed_entry_id`
+3. Consulta si existe `insotech.radian.event` con código 033/034 y estado ≠ error
+4. Si existe:
+   - **Sin grupo override** → `raise UserError` con mensaje explicativo
+   - **Con grupo override** → permite pero SIEMPRE publica alerta en chatter
+
+### Componente 5: Grupo de Seguridad
+**Archivo:** `security/security.xml`
+
+Grupo `insotech_l10n_co_advanced.group_radian_override`:
+- Nombre: "RADIAN: Permitir NC/ND sobre facturas aceptadas"
+- Sin `privilege_id` (grupo interno, no visible en categorías)
+- Se asigna manualmente a contadores/gerentes autorizados
+
+### Permisos (ACL)
+**Archivo:** `security/ir.model.access.csv`
+
+| Modelo | Invoicers | Managers |
+|--------|-----------|----------|
+| `insotech.radian.event` | read/write/create | full (+ unlink) |
+| `insotech.custom.holiday` | read-only | full |
+
+---
+
 ## Fase 7.2 — Portal Receptor para Personas Naturales (DIFERENCIADOR #1)
 
 > **Prioridad:** 🔴 Alta — Inversión: 40-60 horas
