@@ -52,6 +52,41 @@ Si la DIAN rechaza tu factura:
 - Restauración automática del nombre temporal
 - El consecutivo original se preserva para el reintento
 
+### 📡 Eventos RADIAN — Control Total del Ciclo de Vida
+La factura electrónica no termina cuando la DIAN la acepta. InSoTech gestiona los eventos RADIAN que convierten tu factura en un documento con pleno valor jurídico:
+
+| Evento | Código | Descripción |
+|:-:|:-:|---|
+| Acuse de Recibo | 030 | Confirma que el receptor recibió la factura |
+| Recibo de Bienes | 032 | Certifica que los bienes o servicios fueron entregados |
+| Aceptación Expresa | 033 | El receptor acepta formalmente la factura |
+| Aceptación Tácita | 034 | Se genera automáticamente cuando el receptor no responde en 3 días |
+| Reclamo | 031 | El receptor rechaza la factura (con motivo DIAN) |
+
+**¿Por qué importa?**
+- Sin estos eventos, tu factura **no tiene "vocación de circulación"** — no es negociable como título valor
+- Sin Aceptación (033/034), la factura **no es soporte válido** para costos, deducciones ni impuestos descontables
+- Los competidores (Siigo, Alegra) ya lo ofrecen — RADIAN es el nuevo estándar de competencia
+
+**Modo RADIAN configurable:**
+- **Solo facturas marcadas** — Tú decides cuáles tienen vocación de circulación
+- **Todas las facturas a crédito** — Generación automática para toda factura con plazo de pago
+- **Desactivado** — Si no necesitas título valor
+
+### 🔐 Monitoreo de Certificado Digital
+Protección proactiva contra el bloqueo operativo más costoso: un certificado .p12 vencido.
+
+| Nivel | Días restantes | Acción |
+|:-:|:-:|---|
+| 🟢 Aviso | ≤ 90 días | Notificación en el chatter de la empresa |
+| 🟡 Advertencia | ≤ 30 días | "Programe la renovación" |
+| 🔴 Crítico | ≤ 7 días | "Renueve URGENTEMENTE" |
+| 🔴 Bloqueado | 0 días | "Facturación electrónica BLOQUEADA" |
+
+- Verificación automática diaria (CRON)
+- Fecha de vencimiento extraída directamente del .p12 — sin configuración manual
+- Visible en **Ajustes → InSoTech** con contador de días en tiempo real
+
 ---
 
 ## 📦 Módulos Incluidos
@@ -59,6 +94,7 @@ Si la DIAN rechaza tu factura:
 | Módulo | Descripción |
 |---|---|
 | `insotech_l10n_co_advanced` | Motor principal de facturación electrónica DIAN con protección de consecutivos |
+| `insotech_dian_wizard` | Habilitación DIAN directa, firma XAdES-BES, generación UBL 2.1 y eventos RADIAN |
 | `insotech_core` | Licenciamiento SaaS con validación centralizada y período de gracia 72h |
 
 ---
