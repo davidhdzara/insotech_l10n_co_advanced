@@ -4,6 +4,27 @@ Todos los cambios relevantes de este módulo se documentan en este archivo.
 
 ---
 
+## [19.0.1.2.0] — 2026-03-24
+
+### Añadido
+- **Botón "Verificar en DIAN"**: Abre el portal DIAN (`catalogo-vpfe.dian.gov.co/User/SearchDocument?DocumentKey={CUFE}`) para verificar facturas aceptadas. Solo visible cuando `insotech_dian_status == 'accepted'`.
+- **Contador de resolución DIAN en diario**: Nueva pestaña "Resolución DIAN (InSoTech)" en el formulario del diario con campos computados: usados, total, disponibles, % disponible.
+- **Tracking de consecutivos DIAN (3 capas)**:
+  - **Capa 1**: Persistencia automática — guarda último consecutivo en `ir.config_parameter` al aceptar.
+  - **Capa 2**: Protección pre-envío — `_insotech_check_duplicate_consecutive()` bloquea envíos duplicados.
+  - **Capa 3**: Botón "Detectar último consecutivo" en diario — escanea `l10n_co_dian.document`, facturas posted, e `ir.config_parameter`.
+- **Campo `insotech_last_dian_consecutive`**: Override manual del último consecutivo (stored en `account.journal`).
+- **Parámetro `ir.config_parameter`**: `insotech.dian.last_consecutive.{journal_id}` — sobrevive backups.
+
+### Mejorado
+- **Contador de resolución**: Ahora lee de `ir.config_parameter` como fuente primaria (más preciso tras restauraciones de BD). Fallback a conteo de facturas posted.
+- **UI de factura**: Contador simplificado a texto plano (sin badges de colores). Botón "Verificar en DIAN" sin lupa ni iconos.
+
+### Fix
+- **`button_l10n_co_dian_fetch_numbering_range`**: `l10n_co_verification_code` ahora usa `getattr()` para evitar `AttributeError` en algunas versiones de Odoo 19.
+
+---
+
 ## [19.0.1.1.0] — 2026-03-23
 
 ### Fix Crítico: Errores DIAN FAD05a/b/c

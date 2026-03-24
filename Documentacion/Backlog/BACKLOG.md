@@ -68,9 +68,7 @@
 
 ---
 
-## 🟡 En Progreso
-
-### FASE 4 — Configuración Producción + Cobertura Funcional
+### FASE 4 — Configuración Producción + Cobertura Funcional 🟡 EN PROGRESO
 
 | ID | Item | Prioridad | Estado | Responsable |
 |---|---|---|---|---|
@@ -79,7 +77,11 @@
 | 4.2 | Documento Soporte (DSNO): extender PRE-INV a compras electrónicas | 🟡 Media | Pendiente | — |
 | 4.3 | DV Automático: `_compute_dv()` en `res.partner` — quick win | 🟢 Alta | Pendiente | — |
 | 4.4 | Diagnóstico Inteligente de Errores DIAN | 🟢 Alta | Pendiente | — |
-| 4.5 | Pre-validación de Contactos (reduce rechazos 70%) | 🟢 Alta | Pendiente | — |
+| 4.5 | Pre-validación de Contactos (reduce rechazos 70%) | 🟢 Alta | ✅ | — |
+
+---
+
+## 🟡 En Progreso
 
 ### FASE 5 — QA y Validación
 
