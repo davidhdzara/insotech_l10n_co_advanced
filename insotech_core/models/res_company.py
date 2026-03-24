@@ -43,13 +43,18 @@ class ResCompany(models.Model):
             response = requests.post(
                 'https://www.insotech.it/insotech/api/v1/verify',
                 json=payload,
-                timeout=4
+                timeout=10
             )
             
             if response.status_code == 200:
                 try:
                     data = response.json()
                     status = data.get('status')
+                    _logger.info(
+                        "Insotech: License API response for %s — "
+                        "status=%s, http=%d",
+                        vat, status, response.status_code,
+                    )
                     if status == 'active':
                         self.sudo().write({
                             'insotech_usage_count': 0,
@@ -66,11 +71,15 @@ class ResCompany(models.Model):
                     _logger.warning("Insotech: Respuesta no válida (JSON inválido).")
                     return _check_grace_period()
             else:
-                _logger.warning("Insotech: API respondió con código %s", response.status_code)
+                _logger.warning(
+                    "Insotech: API respondió con código %s — body: %s",
+                    response.status_code,
+                    response.text[:200] if response.text else '(vacío)',
+                )
                 return _check_grace_period()
                 
         except requests.exceptions.Timeout:
-            _logger.warning("Insotech: Timeout de 4s al validar la licencia.")
+            _logger.warning("Insotech: Timeout de 10s al validar la licencia.")
             return _check_grace_period()
         except requests.exceptions.RequestException as e:
             _logger.warning("Insotech: Error de red al validar la licencia: %s", e)
