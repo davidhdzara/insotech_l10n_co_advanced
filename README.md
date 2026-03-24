@@ -68,10 +68,17 @@ La factura electrónica no termina cuando la DIAN la acepta. InSoTech gestiona l
 - Sin Aceptación (033/034), la factura **no es soporte válido** para costos, deducciones ni impuestos descontables
 - Los competidores (Siigo, Alegra) ya lo ofrecen — RADIAN es el nuevo estándar de competencia
 
-**Modo RADIAN configurable:**
-- **Solo facturas marcadas** — Tú decides cuáles tienen vocación de circulación
-- **Todas las facturas a crédito** — Generación automática para toda factura con plazo de pago
-- **Desactivado** — Si no necesitas título valor
+**Modo RADIAN configurable desde Ajustes:**
+
+La "vocación de circulación" determina si una factura puede ser negociada como título valor (factoring, endoso, cesión). No todas las facturas lo requieren, por eso InSoTech te da control total:
+
+| Modo | Comportamiento | Ideal para |
+|---|---|---|
+| **Solo facturas marcadas** *(predeterminado)* | Tú decides factura por factura cuáles tienen vocación de circulación. Solo esas generan eventos RADIAN. | Empresas que negocian algunas facturas como título valor, pero no todas |
+| **Todas las facturas a crédito** | Genera eventos RADIAN automáticamente para toda factura con plazo de pago (30, 60, 90 días). | Empresas que operan con factoring o necesitan soporte fiscal completo |
+| **Desactivado** | No se generan eventos RADIAN. La facturación funciona normalmente. | Empresas que solo emiten facturas de contado o no requieren título valor |
+
+> 💡 **¿Qué es la "vocación de circulación"?** Es el concepto jurídico (Resolución 000165/2023) que indica que una factura electrónica será usada como instrumento de crédito negociable. Solo las facturas con esta vocación necesitan los eventos RADIAN (030-034) para tener pleno valor jurídico ante terceros.
 
 ### 🔐 Monitoreo de Certificado Digital
 Protección proactiva contra el bloqueo operativo más costoso: un certificado .p12 vencido.
