@@ -72,6 +72,36 @@ class ResCompany(models.Model):
              "automáticamente para toda factura con plazo de pago.",
     )
 
+    # -----------------------------------------------------------------
+    # CONTINGENCY CONFIGURATION (multi-tenant)
+    # -----------------------------------------------------------------
+
+    insotech_contingency_retries = fields.Integer(
+        string="Reintentos de envío DIAN",
+        default=4,
+        help="Número total de intentos antes de activar "
+             "contingencia Tipo 04 (protocolo DIAN: 4).",
+    )
+    insotech_contingency_interval = fields.Integer(
+        string="Intervalo entre reintentos (seg)",
+        default=20,
+        help="Segundos de espera entre cada reintento "
+             "(protocolo DIAN: 20 segundos).",
+    )
+    insotech_contingency_deadline_hours = fields.Integer(
+        string="Horas límite retransmisión",
+        default=48,
+        help="Horas máximas para retransmitir facturas en "
+             "contingencia una vez DIAN se recupere "
+             "(protocolo DIAN: 48 horas).",
+    )
+    insotech_radian_tacit_days = fields.Integer(
+        string="Días hábiles aceptación tácita",
+        default=3,
+        help="Días hábiles para aceptación tácita RADIAN "
+             "(Proyecto de Decreto MinCIT: 3 días).",
+    )
+
     @api.depends('insotech_dian_cert_file', 'insotech_dian_cert_password')
     def _compute_cert_expiry_date(self):
         """Extracts the expiry date from the .p12 certificate."""

@@ -80,6 +80,14 @@ class AccountMove(models.Model):
              "Gestionado por el módulo Insotech."
     )
 
+    # Extend native operation_type with contingency codes
+    l10n_co_edi_operation_type = fields.Selection(
+        selection_add=[
+            ('03', 'Contingencia Proveedor Tecnológico'),
+            ('04', 'Contingencia DIAN'),
+        ],
+    )
+
     insotech_pre_inv_name = fields.Char(
         string="Nombre Temporal PRE-INV",
         copy=False,

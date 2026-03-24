@@ -181,11 +181,12 @@ class RadianEvent(models.Model):
             if existing:
                 continue
 
-            # Calculate the deadline: 032 date + 3 business days
+            # Calculate the deadline: 032 date + configurable days
             recibo_date = recibo.event_date.date()
             custom_holidays = self._get_custom_holidays(company)
+            tacit_days = company.insotech_radian_tacit_days or 3
             deadline = add_business_days(
-                recibo_date, 3, custom_holidays,
+                recibo_date, tacit_days, custom_holidays,
             )
 
             if today <= deadline:
