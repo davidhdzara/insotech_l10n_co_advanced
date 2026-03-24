@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 """Override res.partner to auto-compute DV for Colombian NITs.
 
-Uses @api.onchange (UI-only) to auto-fill the verification digit
-when the user types a NIT.  Checks that the field exists before
-setting it, since l10n_co_verification_code may not be installed.
+Adds a 'Dígito de Verificación' field to res.partner and auto-fills
+it using the DIAN modulo-11 algorithm when the identification type
+is NIT (code 31).
 
 ⚠️ V18 MIGRATION NOTE:
-   Verify field name and model in Odoo 18's l10n_co module.
+   Verify l10n_latam_identification_type_id field exists in Odoo 18.
 """
 import logging
 
-from odoo import api, models
+from odoo import api, fields, models
 
 _logger = logging.getLogger(__name__)
 
@@ -35,20 +35,16 @@ def _compute_verification_digit(nit_str):
 class ResPartner(models.Model):
     _inherit = 'res.partner'
 
+    insotech_dv = fields.Char(
+        string="DV",
+        size=1,
+        help="Dígito de Verificación del NIT — calculado "
+             "automáticamente con el algoritmo módulo 11 de la DIAN.",
+    )
+
     @api.onchange('vat', 'l10n_latam_identification_type_id')
     def _onchange_vat_compute_dv(self):
         """Auto-fill DV when user types a NIT in the contact form."""
-        # Check which DV field exists on this model
-        dv_field = None
-        for fname in ('l10n_co_verification_code', 'vat_dv'):
-            if fname in self._fields:
-                dv_field = fname
-                break
-
-        if not dv_field:
-            # No DV field available — nothing to do
-            return
-
         for partner in self:
             try:
                 id_type = partner.l10n_latam_identification_type_id
@@ -66,6 +62,6 @@ class ResPartner(models.Model):
                 )
                 dv = _compute_verification_digit(clean_vat)
                 if dv:
-                    partner[dv_field] = dv
+                    partner.insotech_dv = dv
             elif not is_nit:
-                partner[dv_field] = ''
+                partner.insotech_dv = ''
