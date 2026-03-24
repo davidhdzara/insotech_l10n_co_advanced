@@ -39,11 +39,14 @@ class AccountJournal(models.Model):
     def _compute_insotech_resolution_counter(self):
         """Count DIAN resolution usage per journal.
 
-        Counts posted invoices (excluding PRE-INV) in this
-        journal and compares against the authorized range.
+        Primary source: ir.config_parameter (persisted by
+        Capa 1 on each DIAN acceptance). Fallback: count
+        posted non-PRE-INV invoices in the DB.
+
         Works with ANY journal name — reads range fields
         dynamically from l10n_co_edi fields.
         """
+        ICP = self.env['ir.config_parameter'].sudo()
         for journal in self:
             journal.insotech_resolution_used = 0
             journal.insotech_resolution_total = 0
@@ -65,14 +68,28 @@ class AccountJournal(models.Model):
 
             total = max_r - min_r + 1
 
-            used = self.env['account.move'].search_count([
-                ('journal_id', '=', journal.id),
-                ('state', '=', 'posted'),
-                ('move_type', 'in', (
-                    'out_invoice', 'out_refund',
-                )),
-                ('name', 'not like', 'PRE-INV%'),
-            ])
+            # Primary: read from ir.config_parameter
+            param_key = (
+                'insotech.dian.last_consecutive.%d'
+                % journal.id
+            )
+            last_consecutive = int(
+                ICP.get_param(param_key, '0')
+            )
+
+            if last_consecutive >= min_r:
+                # Compute used from the persisted consecutive
+                used = last_consecutive - min_r + 1
+            else:
+                # Fallback: count posted invoices in DB
+                used = self.env['account.move'].search_count([
+                    ('journal_id', '=', journal.id),
+                    ('state', '=', 'posted'),
+                    ('move_type', 'in', (
+                        'out_invoice', 'out_refund',
+                    )),
+                    ('name', 'not like', 'PRE-INV%'),
+                ])
 
             available = max(0, total - used)
             pct = (available / total * 100) if total > 0 else 0
@@ -85,6 +102,125 @@ class AccountJournal(models.Model):
                 '%d / %d usados (%.1f%% disponible)'
                 % (used, total, pct)
             )
+
+    # -----------------------------------------------------------------
+    # CAPA 3: Detection wizard + manual override
+    # -----------------------------------------------------------------
+
+    insotech_last_dian_consecutive = fields.Integer(
+        string='Último consecutivo DIAN',
+        help='Último número consecutivo aceptado por la DIAN '
+             'para este diario. Se actualiza automáticamente '
+             'al enviar facturas. Use el botón "Detectar" o '
+             'edite manualmente si restauró la base de datos.',
+    )
+
+    def action_insotech_detect_last_consecutive(self):
+        """Detect the last DIAN consecutive used for this journal.
+
+        Searches in multiple sources to find the highest
+        consecutive number:
+        1. l10n_co_dian.document records (if available)
+        2. Posted invoices in this journal (non-PRE-INV)
+        3. ir.config_parameter (previous persistence)
+
+        Updates both the stored field and ir.config_parameter.
+        """
+        self.ensure_one()
+        import re
+
+        journal = self
+        prefix = (journal.code or '').strip()
+        detected = 0
+
+        # Source 1: l10n_co_dian.document (Enterprise)
+        try:
+            dian_docs = self.env['l10n_co_dian.document'].search([
+                ('journal_id', '=', journal.id),
+            ])
+            for doc in dian_docs:
+                doc_name = getattr(doc, 'name', '') or ''
+                m = re.search(r'(\d+)\s*$', doc_name)
+                if m:
+                    detected = max(detected, int(m.group(1)))
+        except Exception:
+            pass  # Table may not exist
+
+        # Source 2: Posted invoices in journal
+        moves = self.env['account.move'].search([
+            ('journal_id', '=', journal.id),
+            ('state', '=', 'posted'),
+            ('move_type', 'in', (
+                'out_invoice', 'out_refund',
+            )),
+            ('name', 'not like', 'PRE-INV%'),
+        ], order='id desc', limit=100)
+        for move in moves:
+            m = re.search(r'(\d+)\s*$', move.name or '')
+            if m:
+                detected = max(detected, int(m.group(1)))
+
+        # Source 3: ir.config_parameter (previous value)
+        param_key = (
+            'insotech.dian.last_consecutive.%d'
+            % journal.id
+        )
+        ICP = self.env['ir.config_parameter'].sudo()
+        prev = int(ICP.get_param(param_key, '0'))
+        detected = max(detected, prev)
+
+        # Persist the detected value
+        if detected > 0:
+            ICP.set_param(param_key, str(detected))
+            journal.insotech_last_dian_consecutive = detected
+
+        # Notify via action
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Detección completada',
+                'message': (
+                    'Último consecutivo detectado: %s%d'
+                    % (prefix, detected)
+                ) if detected else (
+                    'No se encontraron consecutivos previos. '
+                    'Ingrese el valor manualmente.'
+                ),
+                'type': 'success' if detected else 'warning',
+                'sticky': False,
+            },
+        }
+
+    def write(self, vals):
+        """Override write to sync manual consecutive override."""
+        result = super().write(vals)
+        # If the user manually sets the consecutive, persist it
+        if 'insotech_last_dian_consecutive' in vals:
+            ICP = self.env['ir.config_parameter'].sudo()
+            for journal in self:
+                param_key = (
+                    'insotech.dian.last_consecutive.%d'
+                    % journal.id
+                )
+                manual_val = journal.insotech_last_dian_consecutive
+                if manual_val > 0:
+                    ICP.set_param(param_key, str(manual_val))
+                    _logger.info(
+                        "Insotech: Manual consecutive override "
+                        "for journal %d: %d",
+                        journal.id, manual_val,
+                    )
+        # Check if DIAN-related fields were modified
+        dian_fields = {
+            'l10n_co_dian_provider',
+            'l10n_co_edi_dian_authorization_number',
+            'code',
+        }
+        if dian_fields & set(vals.keys()):
+            for journal in self:
+                journal._insotech_check_dian_sequence_format()
+        return result
 
     # -----------------------------------------------------------------
     # DIAN SEQUENCE FORMAT VALIDATION
@@ -177,20 +313,6 @@ class AccountJournal(models.Model):
                     journal.name,
                 )
         return journals
-
-    def write(self, vals):
-        """Override write to warn about DIAN sequence format."""
-        result = super().write(vals)
-        # Check if DIAN-related fields were modified
-        dian_fields = {
-            'l10n_co_dian_provider',
-            'l10n_co_edi_dian_authorization_number',
-            'code',
-        }
-        if dian_fields & set(vals.keys()):
-            for journal in self:
-                journal._insotech_check_dian_sequence_format()
-        return result
 
     # -----------------------------------------------------------------
     # DIAN NUMBERING RANGE FETCH (existing)

@@ -481,6 +481,35 @@ class AccountMove(models.Model):
                         company.insotech_usage_count + 1
                 })
 
+                # ── Capa 1: Persist last consecutive ──
+                # Extract the DIAN number from the name
+                # (e.g. FE3 → 3, FEGU5003 → 5003)
+                num_match = re.search(
+                    r'(\d+)\s*$', dian_name
+                )
+                if num_match:
+                    dian_num = int(num_match.group(1))
+                    param_key = (
+                        'insotech.dian.last_consecutive.%d'
+                        % move.journal_id.id
+                    )
+                    current = int(
+                        self.env[
+                            'ir.config_parameter'
+                        ].sudo().get_param(param_key, '0')
+                    )
+                    if dian_num > current:
+                        self.env[
+                            'ir.config_parameter'
+                        ].sudo().set_param(
+                            param_key, str(dian_num)
+                        )
+                        _logger.info(
+                            "Insotech: Persisted last DIAN "
+                            "consecutive for journal %d: %d",
+                            move.journal_id.id, dian_num,
+                        )
+
                 # Log in chatter
                 move.message_post(
                     body=Markup(
@@ -612,6 +641,67 @@ class AccountMove(models.Model):
                 # In case of unexpected errors in license validation,
                 # allow the operation to continue to avoid blocking
                 # the client's business
+
+    def _insotech_check_duplicate_consecutive(self):
+        """Capa 2: Pre-send check to avoid sending duplicates.
+
+        Before sending to DIAN, compute the DIAN number that
+        WOULD be sent and compare it against the last accepted
+        consecutive stored in ir.config_parameter.
+
+        If the number was already sent, raise UserError with
+        the next available consecutive.
+
+        This protects against:
+        - DB restores where Odoo's sequence resets
+        - Re-sends of previously accepted invoices
+        """
+        for move in self:
+            if not move.insotech_is_co_edi:
+                continue
+
+            journal = move.journal_id
+            param_key = (
+                'insotech.dian.last_consecutive.%d'
+                % journal.id
+            )
+            last_dian = int(
+                self.env[
+                    'ir.config_parameter'
+                ].sudo().get_param(param_key, '0')
+            )
+            if not last_dian:
+                continue
+
+            # Compute what the DIAN number would be
+            dian_name = move._insotech_compute_dian_compliant_name()
+            if not dian_name:
+                continue
+
+            num_match = re.search(r'(\d+)\s*$', dian_name)
+            if not num_match:
+                continue
+
+            dian_num = int(num_match.group(1))
+            prefix = (journal.code or '').strip()
+
+            if dian_num <= last_dian:
+                next_available = last_dian + 1
+                raise UserError(_(
+                    "⚠️ El consecutivo %s%d ya fue enviado a la "
+                    "DIAN previamente.\n\n"
+                    "El último consecutivo registrado para este "
+                    "diario es: %s%d\n\n"
+                    "El siguiente disponible es: %s%d\n\n"
+                    "Para corregir:\n"
+                    "1. Vaya a la lista de facturas\n"
+                    "2. Seleccione esta factura\n"
+                    "3. Use 'Resecuenciar' para cambiar a %s%d",
+                    prefix, dian_num,
+                    prefix, last_dian,
+                    prefix, next_available,
+                    prefix, next_available,
+                ))
 
     # -------------------------------------------------------------------------
     # NAME SWAP HELPERS — Swap between PRE-INV and real DIAN name
@@ -879,6 +969,10 @@ class AccountMove(models.Model):
         If the send fails with exception, restore PRE-INV.
         """
         self._insotech_validate_license_before_dian()
+
+        # ── Capa 2: Pre-send duplicate check ──
+        self._insotech_check_duplicate_consecutive()
+
         self._insotech_swap_to_dian_name()
         try:
             result = super().action_send_and_print(**kwargs)

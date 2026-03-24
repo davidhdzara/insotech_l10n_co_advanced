@@ -2,8 +2,7 @@
 <odoo>
 
     <!-- ============================================================ -->
-    <!-- Journal form: DIAN Resolution Counter Section                -->
-    <!-- Shows usage counter below the RESOLUCIÓN DIAN section.       -->
+    <!-- Journal form: DIAN Resolution Counter + Consecutive Tracking  -->
     <!-- Visible only on journals with DIAN config enabled.           -->
     <!-- Works for ANY journal name — reads fields dynamically.       -->
     <!-- ============================================================ -->
@@ -19,7 +18,7 @@
                 <page string="Resolución DIAN (InSoTech)"
                       name="insotech_dian_resolution"
                       invisible="not l10n_co_edi_dian_authorization_number">
-                    <group string="📊 Contador de Resolución DIAN">
+                    <group string="Contador de Resolución DIAN">
                         <group>
                             <field name="insotech_resolution_display"
                                    string="Estado de uso"
@@ -41,6 +40,20 @@
                                    readonly="1"
                                    widget="float"
                                    digits="[5,1]"/>
+                        </group>
+                    </group>
+                    <group string="Tracking de Consecutivos">
+                        <group>
+                            <field name="insotech_last_dian_consecutive"
+                                   string="Último consecutivo DIAN"/>
+                        </group>
+                        <group>
+                            <button name="action_insotech_detect_last_consecutive"
+                                    string="Detectar último consecutivo"
+                                    type="object"
+                                    class="btn-secondary"
+                                    icon="fa-search"
+                                    help="Busca en facturas enviadas y registros DIAN para detectar automáticamente el último consecutivo utilizado."/>
                         </group>
                     </group>
                 </page>
