@@ -41,6 +41,35 @@
                                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"/>
                     </setting>
                 </block>
+                <block title="Certificado Digital DIAN"
+                       name="insotech_dian_cert_status_container">
+                    <setting help="Estado del certificado digital .p12 configurado para esta empresa."
+                             id="insotech_dian_setting_cert_status">
+                        <label for="insotech_dian_cert_expiry_date" string="Vencimiento del Certificado"/>
+                        <div class="text-muted">
+                            Fecha de vencimiento extraída automáticamente del certificado .p12
+                        </div>
+                        <div class="mt-2">
+                            <field name="insotech_dian_cert_expiry_date" readonly="1"/>
+                            <span class="ms-2 text-muted">
+                                (<field name="insotech_dian_cert_days_remaining" readonly="1"/> días restantes)
+                            </span>
+                        </div>
+                    </setting>
+                </block>
+                <block title="Configuración RADIAN"
+                       name="insotech_radian_config_container">
+                    <setting help="Define cómo se gestionan los eventos RADIAN (acuse de recibo, aceptación, rechazo) para las facturas emitidas."
+                             id="insotech_radian_setting_mode">
+                        <label for="insotech_radian_mode"/>
+                        <div class="text-muted">
+                            No todas las facturas requieren registro RADIAN.
+                            Solo aplica para facturas con "vocación de circulación"
+                            (cuando el emisor desea negociarlas como título valor).
+                        </div>
+                        <field name="insotech_radian_mode" class="mt-2"/>
+                    </setting>
+                </block>
                 <block title="Estado" name="insotech_dian_state_container">
                     <setting help="Estado actual de la habilitación DIAN para esta empresa."
                              id="insotech_dian_setting_state">

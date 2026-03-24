@@ -26,3 +26,19 @@ class ResConfigSettings(models.TransientModel):
         readonly=True,
         string="Estado Configuración DIAN",
     )
+    insotech_dian_cert_expiry_date = fields.Date(
+        related='company_id.insotech_dian_cert_expiry_date',
+        readonly=True,
+        string="Vencimiento Certificado",
+    )
+    insotech_dian_cert_days_remaining = fields.Integer(
+        related='company_id.insotech_dian_cert_days_remaining',
+        readonly=True,
+        string="Días Restantes Certificado",
+    )
+    insotech_radian_mode = fields.Selection(
+        related='company_id.insotech_radian_mode',
+        readonly=False,
+        string="Modo RADIAN",
+    )
+

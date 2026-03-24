@@ -1,6 +1,6 @@
 {
     'name': 'Insotech DIAN Setup Wizard',
-    'version': '19.0.2.0.0',
+    'version': '19.0.2.1.0',
     'category': 'Accounting/Localizations',
     'summary': 'Habilitación DIAN directa — envío de set de pruebas '
                'via SOAP sin configuración previa en Odoo',
@@ -22,6 +22,7 @@
     'website': 'https://www.insotech.it',
     'depends': [
         'base',
+        'mail',
         'account',
         'product',
         'l10n_co_dian',
@@ -32,6 +33,7 @@
     },
     'data': [
         'security/ir.model.access.csv',
+        'data/cron_certificate_expiry.xml',
         'views/dian_setup_wizard_views.xml',
         'views/res_config_settings_views.xml',
     ],

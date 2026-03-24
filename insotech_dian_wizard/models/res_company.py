@@ -1,8 +1,15 @@
+import base64
 import logging
+from datetime import datetime, timezone
 
 from odoo import api, fields, models
 
 _logger = logging.getLogger(__name__)
+
+# Thresholds for certificate expiry alerts (in days)
+_CERT_ALERT_CRITICAL = 7
+_CERT_ALERT_WARNING = 30
+_CERT_ALERT_NOTICE = 90
 
 
 class ResCompany(models.Model):
@@ -38,6 +45,151 @@ class ResCompany(models.Model):
     insotech_dian_cert_password = fields.Char(
         string="Contraseña certificado (DIAN)",
     )
+    insotech_dian_cert_expiry_date = fields.Date(
+        string="Vencimiento Certificado DIAN",
+        compute='_compute_cert_expiry_date',
+        store=True,
+        help="Fecha de vencimiento extraída automáticamente "
+             "del certificado .p12 cargado.",
+    )
+    insotech_dian_cert_days_remaining = fields.Integer(
+        string="Días restantes certificado",
+        compute='_compute_cert_days_remaining',
+        help="Días restantes antes del vencimiento del certificado.",
+    )
+    insotech_radian_mode = fields.Selection(
+        selection=[
+            ('disabled', 'Desactivado'),
+            ('manual', 'Solo facturas marcadas (vocación de circulación)'),
+            ('all_credit', 'Todas las facturas a crédito'),
+        ],
+        string="Modo RADIAN",
+        default='manual',
+        help="Controla cuándo se generan los eventos RADIAN:\n"
+             "• Desactivado: No se generan eventos.\n"
+             "• Solo facturas marcadas: El usuario decide qué "
+             "facturas tienen vocación de circulación.\n"
+             "• Todas las facturas a crédito: Se generan eventos "
+             "automáticamente para toda factura con plazo de pago.",
+    )
+
+    @api.depends('insotech_dian_cert_file', 'insotech_dian_cert_password')
+    def _compute_cert_expiry_date(self):
+        """Extracts the expiry date from the .p12 certificate."""
+        for company in self:
+            company.insotech_dian_cert_expiry_date = False
+            if not company.insotech_dian_cert_file:
+                continue
+            if not company.insotech_dian_cert_password:
+                continue
+            try:
+                p12_bytes = base64.b64decode(company.insotech_dian_cert_file)
+                from cryptography.hazmat.primitives.serialization import pkcs12
+                _, certificate, _ = pkcs12.load_key_and_certificates(
+                    p12_bytes,
+                    company.insotech_dian_cert_password.encode(),
+                )
+                if certificate:
+                    expiry = certificate.not_valid_after_utc
+                    company.insotech_dian_cert_expiry_date = expiry.date()
+            except Exception as e:
+                _logger.debug(
+                    "Insotech: Could not parse certificate "
+                    "expiry for company %s: %s",
+                    company.name, e,
+                )
+
+    @api.depends('insotech_dian_cert_expiry_date')
+    def _compute_cert_days_remaining(self):
+        """Calculates days remaining until certificate expiry."""
+        today = fields.Date.context_today(self)
+        for company in self:
+            if company.insotech_dian_cert_expiry_date:
+                delta = company.insotech_dian_cert_expiry_date - today
+                company.insotech_dian_cert_days_remaining = delta.days
+            else:
+                company.insotech_dian_cert_days_remaining = -1
+
+    @api.model
+    def _cron_check_certificate_expiry(self):
+        """CRON: Check certificate expiry for all companies.
+
+        Runs daily. Posts an activity on the company and logs:
+        - CRITICAL: <= 7 days remaining
+        - WARNING: <= 30 days remaining
+        - NOTICE: <= 90 days remaining
+        """
+        companies = self.search([
+            ('insotech_dian_cert_file', '!=', False),
+            ('insotech_dian_cert_password', '!=', False),
+        ])
+        today = fields.Date.context_today(self)
+
+        for company in companies:
+            # Force recompute
+            company._compute_cert_expiry_date()
+            expiry = company.insotech_dian_cert_expiry_date
+            if not expiry:
+                continue
+
+            days = (expiry - today).days
+
+            if days <= 0:
+                level = 'BLOQUEADO'
+                emoji = '🔴'
+                msg = (
+                    f"{emoji} CERTIFICADO DIAN VENCIDO "
+                    f"(venció el {expiry}). La facturación "
+                    f"electrónica está BLOQUEADA. "
+                    f"Renueve el certificado inmediatamente."
+                )
+            elif days <= _CERT_ALERT_CRITICAL:
+                level = 'CRÍTICO'
+                emoji = '🔴'
+                msg = (
+                    f"{emoji} ALERTA CRÍTICA: Certificado DIAN "
+                    f"vence en {days} días ({expiry}). "
+                    f"Renueve URGENTEMENTE."
+                )
+            elif days <= _CERT_ALERT_WARNING:
+                level = 'ADVERTENCIA'
+                emoji = '🟡'
+                msg = (
+                    f"{emoji} Certificado DIAN vence en "
+                    f"{days} días ({expiry}). "
+                    f"Programe la renovación."
+                )
+            elif days <= _CERT_ALERT_NOTICE:
+                level = 'AVISO'
+                emoji = '🟢'
+                msg = (
+                    f"{emoji} Certificado DIAN vence en "
+                    f"{days} días ({expiry}). "
+                    f"Considere programar la renovación."
+                )
+            else:
+                # More than 90 days — no alert needed
+                continue
+
+            _logger.warning(
+                "Insotech [%s] Cert Expiry %s: %s — %s",
+                level, company.name, expiry, msg,
+            )
+
+            # Post as a note in the company chatter
+            try:
+                company.message_post(
+                    body=msg,
+                    subject=f"Certificado DIAN — {level}",
+                    message_type='comment',
+                    subtype_xmlid='mail.mt_note',
+                )
+            except Exception as e:
+                _logger.debug(
+                    "Insotech: Could not post cert alert "
+                    "to chatter for %s: %s",
+                    company.name, e,
+                )
 
     def _register_hook(self):
         """Ensure product.product_category_goods XML ID exists.
