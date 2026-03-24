@@ -1,6 +1,5 @@
 import base64
 import logging
-from datetime import datetime, timezone
 
 from odoo import api, fields, models
 
@@ -90,7 +89,12 @@ class ResCompany(models.Model):
                     company.insotech_dian_cert_password.encode(),
                 )
                 if certificate:
-                    expiry = certificate.not_valid_after_utc
+                    # not_valid_after_utc added in cryptography 42.0
+                    # fallback to not_valid_after for older versions
+                    expiry = getattr(
+                        certificate, 'not_valid_after_utc',
+                        certificate.not_valid_after,
+                    )
                     company.insotech_dian_cert_expiry_date = expiry.date()
             except Exception as e:
                 _logger.debug(
