@@ -1037,8 +1037,8 @@ class AccountMove(models.Model):
                 "enviadas y aceptadas por la DIAN."
             ))
         url = (
-            'https://catalogo-vpfe.dian.gov.co/document/'
-            'searchqr?documentkey=%s' % cufe
+            'https://catalogo-vpfe.dian.gov.co/User/'
+            'SearchDocument?DocumentKey=%s' % cufe
         )
         return {
             'type': 'ir.actions.act_url',
