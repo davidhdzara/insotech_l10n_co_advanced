@@ -202,29 +202,32 @@ Con estados dinámicos:
 
 ### Items de Cumplimiento
 
-| ID | Item | Esfuerzo | Módulo |
-|---|---|---|---|
-| 7.6a | Verificar/migrar a SHA-384 para CUFE/CUDE | 2-3h | `insotech_dian_wizard` |
-| 7.6b | Bloqueo NC/ND tras aceptación título valor (irrevocabilidad) | 3-5h | `insotech_radian` |
-| 7.6c | Selector "vocación de circulación" en FE (acción explícita del emisor) | 3-5h | `insotech_radian` |
-| 7.6d | Contingencia Tipo 4: Código de Operación 04 en XML | 5-8h | `insotech_l10n_co_advanced` |
-| 7.6e | Alerta proactiva vencimiento certificado digital (90 días) | 3-5h | `insotech_core` |
+| ID | Item | Esfuerzo | Módulo | Estado |
+|---|---|---|---|---|
+| 7.6a | Verificar/migrar a SHA-384 para CUFE/CUDE | 2-3h | `insotech_dian_wizard` | ✅ Confirmado (ya en producción) |
+| 7.6b | Bloqueo NC/ND tras aceptación título valor (irrevocabilidad) | 3-5h | `insotech_radian` | ⏳ Sprint 1 |
+| 7.6c | Selector "vocación de circulación" en FE | 3-5h | `insotech_dian_wizard` | ✅ Sprint 0 completado |
+| 7.6d | Contingencia Tipo 4: Código de Operación 04 en XML | 5-8h | `insotech_l10n_co_advanced` | ⏳ Sprint 2 |
+| 7.6e | Alerta proactiva vencimiento certificado digital (90 días) | 3-5h | `insotech_dian_wizard` | ✅ Sprint 0 completado |
 
 ---
 
 ## Cronograma Propuesto
 
-| Fase | Descripción | Horas | Sprint | Dependencia |
-|------|-------------|-------|--------|-------------|
-| 7.1 | Investigación | ✅ | ✅ Completado | — |
-| 7.6a | SHA-384 CUFE/CUDE | 2-3h | Sprint 0 (URGENTE) | — |
-| 7.4 | CRON aceptación tácita | 5h | Sprint 1 (Q2 W1) | — |
-| 7.6b-e | Cumplimiento normativo | 15-20h | Sprint 1-2 (Q2 W1-2) | — |
-| 7.2 | Portal receptor personas naturales | 40-60h | Sprint 2-3 (Q2 W2-5) | — |
-| 7.3 | Acciones desde correo | 15-20h | Sprint 3 (Q2 W4-5) | 7.2 |
-| 7.5 | Timeline visual OWL | 15-20h | Sprint 4 (Q2 W6-7) | 7.2 |
+| Fase | Descripción | Horas | Sprint | Estado |
+|------|-------------|-------|--------|--------|
+| 7.1 | Investigación | — | Sprint 0 | ✅ Completado |
+| 7.6a | SHA-384 CUFE/CUDE | — | Sprint 0 | ✅ Ya en producción |
+| 7.6c | Selector vocación de circulación | — | Sprint 0 | ✅ Completado 2026-03-24 |
+| 7.6e | Alerta vencimiento certificado | — | Sprint 0 | ✅ Completado 2026-03-24 |
+| 7.4 | CRON aceptación tácita | 5h | Sprint 1 | ⏳ Siguiente |
+| 7.6b | Bloqueo NC/ND irrevocabilidad | 3-5h | Sprint 1 | ⏳ |
+| 7.6d | Contingencia Tipo 4 (Código 04) | 5-8h | Sprint 2 | ⏳ |
+| 7.2 | Portal receptor personas naturales | 40-60h | Sprint 2-3 | ⏳ |
+| 7.3 | Acciones desde correo | 15-20h | Sprint 3 | ⏳ Depende de 7.2 |
+| 7.5 | Timeline visual OWL | 15-20h | Sprint 4 | ⏳ Depende de 7.2 |
 
-**Total: 95-140 horas → ~5-7 semanas de desarrollo**
+**Completado: Sprint 0 (3 items) · Restante: 85-120 horas → ~4-6 semanas**
 
 ---
 
@@ -237,8 +240,8 @@ Con estados dinámicos:
 | Token de portal comprometido | Medio | UUID4 + expiración + rate limiting + HTTPS |
 | Receptor no recibe correo | Medio | Fallback: portal DIAN directo |
 | Odoo actualiza l10n_co_dian | Medio | Módulo independiente, no toca nativos |
-| SHA-384 no implementado en producción | 🔴 Alto | Verificar INMEDIATAMENTE en `insotech_dian_wizard` |
-| Certificado vence sin alerta | Medio | Implementar alerta 90 días (7.6e) |
+| SHA-384 no implementado en producción | ~~🔴 Alto~~ | ✅ MITIGADO — Confirmado en producción |
+| Certificado vence sin alerta | ~~Medio~~ | ✅ MITIGADO — CRON + 3 niveles de alerta implementado |
 | NC/ND emitida contra FE aceptada (irrevocabilidad) | Alto | Bloqueo programático en `_post()` (7.6b) |
 
 ---
