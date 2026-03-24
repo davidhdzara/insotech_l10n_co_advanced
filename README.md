@@ -27,9 +27,12 @@ La funcionalidad #1 que ningún otro módulo ofrece:
 
 ### 🛡️ Tracking Inteligente de Consecutivos
 Protección ante restauraciones de base de datos, migraciones y desastres:
-- **Capa 1**: Persistencia automática del último consecutivo aceptado
-- **Capa 2**: Bloqueo pre-envío de duplicados — imposible enviar un número ya usado
-- **Capa 3**: Botón de detección automática + override manual en el diario
+
+| Capa | Protección | Ejemplo |
+|:-:|---|---|
+| 1 | **Persistencia automática** — Guarda el último consecutivo aceptado por la DIAN | Envías FE5 → se guarda `5`. Si restauras la BD, el sistema sabe que FE5 ya fue usado |
+| 2 | **Bloqueo pre-envío** — Impide enviar un número que ya fue aceptado | Odoo intenta enviar FE3 pero FE5 ya fue aceptado → ❌ Bloqueado. Muestra: *"El siguiente disponible es FE6"* |
+| 3 | **Detección + override manual** — Botón en el diario para escanear o configurar manualmente | Instalación nueva sin backup → Click "Detectar" → Escanea registros DIAN → Encuentra FE5 como último |
 
 ### ✅ Verificación DIAN con un Click
 Botón "Verificar en DIAN" directamente en la factura:
