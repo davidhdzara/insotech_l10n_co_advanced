@@ -259,7 +259,7 @@ class AccountMove(models.Model):
         """Block NC/ND on invoices accepted as título valor (RADIAN).
 
         When a credit note (out_refund) references an invoice that has
-        event 033 (Aceptación Expresa) or 034 (Aceptación Tácita),
+        event 033 (Aceptación Expresa) or 035 (Aceptación Tácita),
         the invoice is considered irrevocable and NC/ND should be
         blocked.
 
@@ -282,10 +282,10 @@ class AccountMove(models.Model):
             if not original:
                 continue
 
-            # Check if the original has acceptance events (033/034)
+            # Check if the original has acceptance events (033/035)
             acceptance_count = RadianEvent.search_count([
                 ('move_id', '=', original.id),
-                ('event_code', 'in', ('033', '034')),
+                ('event_code', 'in', ('033', '035')),
                 ('state', '!=', 'error'),
             ])
             if not acceptance_count:
@@ -327,7 +327,7 @@ class AccountMove(models.Model):
                     "⛔ No se puede emitir una Nota Crédito sobre "
                     "la factura %s.\n\n"
                     "Esta factura ya fue aceptada como título valor "
-                    "(evento RADIAN 033/034) y es irrevocable.\n\n"
+                    "(evento RADIAN 033/035) y es irrevocable.\n\n"
                     "Si necesita emitir esta NC, contacte al "
                     "administrador para que le asigne el permiso:\n"
                     "\"RADIAN: Permitir NC/ND sobre facturas "

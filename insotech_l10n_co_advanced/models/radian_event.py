@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """RADIAN Event tracking model.
 
-Tracks DIAN RADIAN events (030-034) per invoice. This is a standalone
+Tracks DIAN RADIAN events (030-035) per invoice. This is a standalone
 model (does NOT add fields to account.move) to comply with the rule
 of not modifying native Odoo models.
 
@@ -48,10 +48,11 @@ class RadianEvent(models.Model):
     event_code = fields.Selection(
         selection=[
             ('030', '030 — Acuse de Recibo'),
-            ('031', '031 — Reclamo'),
+            ('031', '031 — Rechazo de la FE'),
             ('032', '032 — Recibo de Bienes y Servicios'),
             ('033', '033 — Aceptación Expresa'),
-            ('034', '034 — Aceptación Tácita'),
+            ('034', '034 — Reclamo de la FE'),
+            ('035', '035 — Aceptación Tácita'),
         ],
         string="Código Evento",
         required=True,
@@ -107,7 +108,7 @@ class RadianEvent(models.Model):
             ('04', '04 — Servicio no prestado'),
         ],
         string="Concepto de Reclamo",
-        help="Motivo del reclamo (solo para evento 031).",
+        help="Motivo del reclamo (solo para evento 034 — Reclamo).",
     )
 
     @api.depends('event_code', 'move_id')
@@ -131,29 +132,33 @@ class RadianEvent(models.Model):
 
     @api.model
     def _cron_tacit_acceptance(self):
-        """CRON: Generate tacit acceptance (034) events.
+        """CRON: Generate tacit acceptance (035) events.
 
         Logic:
-        1. Find all event 030 (Acuse de Recibo) records
-        2. Check if 3 business days have passed since the 030
-        3. Verify no event 033 (Aceptación Expresa) or
-           031 (Reclamo) exists for the same invoice
-        4. Create event 034 (Aceptación Tácita) in dry run
+        1. Find all event 032 (Recibo del Bien/Servicio) records
+        2. Check if 3 business days have passed since the 032
+        3. Verify no event 033 (Aceptación Expresa),
+           031 (Rechazo), or 034 (Reclamo) exists
+        4. Create event 035 (Aceptación Tácita) in dry run
+
+        IMPORTANT: The 3-day clock starts at event 032
+        (Recibo del bien), NOT at 030 (Acuse de recibo).
 
         Legal basis: Resolución 000165/2023, art. 25
         Business days: Art. 62, Ley 4/1913
         """
         from ..services.colombian_calendar import add_business_days
 
-        # Find all acuse events (030) in 'done' state
-        acuse_events = self.search([
-            ('event_code', '=', '030'),
+        # Find all 032 events (Recibo del bien) — this is when
+        # the 3-day clock starts per DIAN timeline
+        recibo_events = self.search([
+            ('event_code', '=', '032'),
             ('state', 'in', ('done', 'sent', 'accepted')),
         ])
 
-        if not acuse_events:
+        if not recibo_events:
             _logger.info(
-                "Insotech RADIAN: No acuse events (030) found "
+                "Insotech RADIAN: No recibo events (032) found "
                 "for tacit acceptance check."
             )
             return
@@ -161,47 +166,49 @@ class RadianEvent(models.Model):
         today = fields.Date.context_today(self)
         created_count = 0
 
-        for acuse in acuse_events:
-            move = acuse.move_id
-            company = acuse.company_id
+        for recibo in recibo_events:
+            move = recibo.move_id
+            company = recibo.company_id
 
-            # Check if this invoice already has 033/034/031
+            # Check if this invoice already has a resolution event:
+            # 033 (Aceptación Expresa), 035 (Aceptación Tácita),
+            # 031 (Rechazo), or 034 (Reclamo)
             existing = self.search_count([
                 ('move_id', '=', move.id),
-                ('event_code', 'in', ('033', '034', '031')),
+                ('event_code', 'in', ('033', '035', '031', '034')),
                 ('state', '!=', 'error'),
             ])
             if existing:
                 continue
 
-            # Calculate the deadline: 030 date + 3 business days
-            acuse_date = acuse.event_date.date()
+            # Calculate the deadline: 032 date + 3 business days
+            recibo_date = recibo.event_date.date()
             custom_holidays = self._get_custom_holidays(company)
             deadline = add_business_days(
-                acuse_date, 3, custom_holidays,
+                recibo_date, 3, custom_holidays,
             )
 
             if today <= deadline:
                 # Not yet expired
                 continue
 
-            # 3 business days have passed — generate 034
+            # 3 business days have passed — generate 035
             _logger.info(
                 "Insotech RADIAN: Generating tacit acceptance "
-                "(034) for invoice %s (acuse date: %s, "
+                "(035) for invoice %s (recibo date: %s, "
                 "deadline: %s, today: %s)",
-                move.name, acuse_date, deadline, today,
+                move.name, recibo_date, deadline, today,
             )
 
-            event_034 = self.create({
+            self.create({
                 'move_id': move.id,
                 'company_id': company.id,
-                'event_code': '034',
+                'event_code': '035',
                 'state': 'done',
                 'source': 'cron',
                 'notes': (
                     f"Aceptación tácita generada automáticamente. "
-                    f"Acuse (030) del {acuse_date}. "
+                    f"Recibo del bien (032) del {recibo_date}. "
                     f"Plazo venció el {deadline}. "
                     f"Modo: dry run (XML no enviado a DIAN)."
                 ),
@@ -211,9 +218,9 @@ class RadianEvent(models.Model):
             try:
                 move.message_post(
                     body=(
-                        f"⏱️ <b>Aceptación Tácita (034)</b> generada "
+                        f"⏱️ <b>Aceptación Tácita (035)</b> generada "
                         f"automáticamente.<br/>"
-                        f"Acuse de recibo (030): {acuse_date}<br/>"
+                        f"Recibo del bien (032): {recibo_date}<br/>"
                         f"Plazo de 3 días hábiles venció: {deadline}<br/>"
                         f"Sin respuesta del receptor → aceptación tácita."
                     ),
@@ -231,5 +238,5 @@ class RadianEvent(models.Model):
 
         _logger.info(
             "Insotech RADIAN: Tacit acceptance CRON complete. "
-            "Created %d event(s) 034.", created_count,
+            "Created %d event(s) 035.", created_count,
         )
