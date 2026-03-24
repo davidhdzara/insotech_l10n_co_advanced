@@ -1,20 +1,17 @@
 # -*- coding: utf-8 -*-
 """Override res.partner to auto-compute DV for Colombian NITs.
 
-The verification digit (Dígito de Verificación) is calculated using
-the DIAN's modulo-11 algorithm whenever the partner's identification
-type is NIT (document type code '31').
+Uses @api.onchange (UI-only) instead of a computed field to avoid
+crashing existing databases during module upgrade. The field
+l10n_co_verification_code stays as a regular Char — no schema change.
 
 ⚠️ V18 MIGRATION NOTE:
-   This file overrides l10n_co_verification_code as a stored computed
-   field.  When porting to V18, verify that:
-   - l10n_co_verification_code still exists in Odoo's l10n_co module
-   - l10n_latam_identification_type_id API hasn't changed
-   - The field is still Char (not Integer)
+   Verify l10n_co_verification_code and l10n_latam_identification_type_id
+   still exist in Odoo 18's l10n_co module.
 """
 import logging
 
-from odoo import api, fields, models
+from odoo import api, models
 
 _logger = logging.getLogger(__name__)
 
@@ -30,12 +27,6 @@ def _compute_verification_digit(nit_str):
         2. Multiply each digit (right to left) by prime factors
         3. Sum products, take modulo 11
         4. If remainder >= 2 → DV = 11 - remainder, else DV = remainder
-
-    Args:
-        nit_str: NIT as string (digits only, no DV, no dashes)
-
-    Returns:
-        str: single digit '0'-'9' or empty string if invalid
     """
     if not nit_str or not nit_str.strip().isdigit():
         return ''
@@ -52,30 +43,22 @@ def _compute_verification_digit(nit_str):
 class ResPartner(models.Model):
     _inherit = 'res.partner'
 
-    l10n_co_verification_code = fields.Char(
-        compute='_compute_l10n_co_verification_code',
-        store=True,
-        readonly=False,
-        string="Verification Code (DV)",
-    )
+    @api.onchange('vat', 'l10n_latam_identification_type_id')
+    def _onchange_vat_compute_dv(self):
+        """Auto-fill DV when user types a NIT in the contact form.
 
-    @api.depends('vat', 'l10n_latam_identification_type_id')
-    def _compute_l10n_co_verification_code(self):
-        """Auto-compute DV only when identification type is NIT.
-
-        Note: This runs on ALL partners during module upgrade.
-        Must handle gracefully: no id_type, no vat, missing fields.
+        Only triggers in the UI (not during batch operations or imports).
+        Does not modify the field definition — safe for upgrades.
         """
         for partner in self:
             try:
                 id_type = partner.l10n_latam_identification_type_id
                 is_nit = bool(
                     id_type
-                    and getattr(id_type, 'l10n_co_document_code', '')
+                    and getattr(id_type, 'l10n_co_document_code', None)
                     == '31'
                 )
             except Exception:
-                # Field might not exist yet during install
                 is_nit = False
 
             if is_nit and partner.vat:
@@ -83,14 +66,10 @@ class ResPartner(models.Model):
                     c for c in (partner.vat or '') if c.isdigit()
                 )
                 dv = _compute_verification_digit(clean_vat)
-                partner.l10n_co_verification_code = dv or ''
+                if dv:
+                    partner.l10n_co_verification_code = dv
             elif is_nit and not partner.vat:
-                # NIT type selected but no VAT yet — keep existing
-                partner.l10n_co_verification_code = (
-                    partner.l10n_co_verification_code or ''
-                )
+                pass  # Keep existing DV
             else:
-                # Not NIT or no id_type — don't overwrite manually
-                # entered values for non-Colombian partners
-                if not partner.l10n_co_verification_code:
-                    partner.l10n_co_verification_code = ''
+                # Not NIT → clear DV
+                partner.l10n_co_verification_code = ''
