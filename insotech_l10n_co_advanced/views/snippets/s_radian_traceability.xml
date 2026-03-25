@@ -6,7 +6,7 @@
             <div class="row w-100 mt-2" style="font-size: 0.85rem; color: #000; font-family: sans-serif;">
                 <div class="col-12 col-md-3 text-center mb-3 mb-md-0 pt-2">
                     <!-- Real QR Code -->
-                    <t t-set="qr_string" t-value="invoice.l10n_co_edi_qr_code if hasattr(invoice, 'l10n_co_edi_qr_code') and invoice.l10n_co_edi_qr_code else 'https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey=' + (invoice.l10n_co_edi_cufe_cude_ref or '')"/>
+                    <t t-set="qr_string" t-value="invoice.l10n_co_edi_qr_code if 'l10n_co_edi_qr_code' in invoice and invoice.l10n_co_edi_qr_code else 'https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey=' + (invoice.l10n_co_edi_cufe_cude_ref or '')"/>
                     <img t-attf-src="/report/barcode/?barcode_type=QR&amp;value={{ qr_string }}&amp;width=180&amp;height=180" class="img-fluid border p-1" alt="QR DIAN"/>
                 </div>
                 <div class="col-12 col-md-9 text-start">
