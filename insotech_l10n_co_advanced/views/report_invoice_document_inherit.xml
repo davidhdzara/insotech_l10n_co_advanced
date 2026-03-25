@@ -1,135 +1,123 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!--
+        RADIAN PDF Complement — Título Valor (Resolución DIAN 000165)
+        Filosofía: Solo COMPLEMENTAR lo que Odoo + l10n_co_dian NO proveen.
+        NO se oculta ni reemplaza ningún nodo nativo.
+    -->
     <template id="report_invoice_document_inherit_radian" inherit_id="account.report_invoice_document">
-        
-        <!-- A. Reconstrucción B2B Premium del Bloque de Cliente -->
-        <xpath expr="//div[hasclass('row')][1]" position="attributes">
-            <attribute name="style">display: none !important;</attribute>
-        </xpath>
-        <xpath expr="//div[hasclass('row')][1]" position="before">
-            <div class="row mb-5" id="b2b_customer_block">
-                <div class="col-8">
-                    <h6 class="text-uppercase fw-bold mb-2" style="color: #003498; letter-spacing: 1px; font-size: 0.85em;">Adquiriente / Deudor</h6>
-                    <div class="bg-light p-3 rounded-4 shadow-sm border border-light">
-                        <h4 class="fw-bolder mb-2 text-dark"><span t-field="o.partner_id.name"/></h4>
-                        <div class="text-muted" style="font-size: 0.95em; line-height: 1.6;">
-                            <div><strong>NIT / CC:</strong> <span t-field="o.partner_id.vat"/></div>
-                            <div><strong>Domicilio Legal:</strong> 
-                                <span t-if="o.partner_id.street" t-field="o.partner_id.street"/>, 
-                                <span t-if="o.partner_id.city" t-field="o.partner_id.city"/>
-                                <span t-if="o.partner_id.state_id">, <span t-field="o.partner_id.state_id.name"/></span>
-                            </div>
-                            <div t-if="o.partner_id.phone"><strong>Teléfono:</strong> <span t-field="o.partner_id.phone"/></div>
-                            <div t-if="o.partner_id.email"><strong>Correo Electrónico:</strong> <span t-field="o.partner_id.email"/></div>
-                        </div>
-                    </div>
+
+        <!-- ============================================================
+             A. COMPLEMENTO AL BLOQUE DE CLIENTE
+             El nativo muestra nombre, dirección y NIT.
+             Nosotros añadimos: label legal + teléfono + email.
+             ============================================================ -->
+        <xpath expr="//div[@name='no_shipping']" position="after">
+            <div class="mt-2" style="font-size: 0.9em;">
+                <div class="text-uppercase fw-bold text-muted mb-1" style="font-size: 0.8em; letter-spacing: 0.05em;">Adquiriente / Deudor</div>
+                <div t-if="o.partner_id.phone">
+                    <strong>Teléfono:</strong> <span t-field="o.partner_id.phone"/>
+                </div>
+                <div t-if="o.partner_id.email">
+                    <strong>Correo:</strong> <span t-field="o.partner_id.email"/>
                 </div>
             </div>
         </xpath>
 
-        <!-- B. Inyección de Tipología y Fechas DIAN de forma Premium -->
-        <xpath expr="//div[@id='informations']" position="attributes">
-            <attribute name="style">display: none !important;</attribute>
-        </xpath>
-        <xpath expr="//div[@id='informations']" position="before">
-            <div id="informations_dian_b2b" class="row mb-4 g-3 bg-light rounded-4 p-2 shadow-sm border border-light align-items-center">
-                <div class="col-auto flex-grow-1 border-end">
-                    <strong class="text-uppercase text-muted d-block mb-1" style="font-size: 0.75em;">Tipo Operación</strong>
-                    <div class="fw-bold" style="color: #003498;">
-                        <span t-if="o.l10n_co_edi_operation_type" t-field="o.l10n_co_edi_operation_type"/>
-                        <span t-else="">Estándar</span>
-                    </div>
-                </div>
-                <div class="col-auto flex-grow-1 border-end" t-if="o.invoice_date">
-                    <strong class="text-uppercase text-muted d-block mb-1" style="font-size: 0.75em;">Fecha Emisión</strong>
-                    <div class="fw-bold text-dark" t-field="o.invoice_date"/>
-                </div>
-                <div class="col-auto flex-grow-1 border-end" t-if="o.invoice_date_due">
-                    <strong class="text-uppercase text-muted d-block mb-1" style="font-size: 0.75em;">Vencimiento</strong>
-                    <div class="fw-bold" style="color: #dc3545;" t-field="o.invoice_date_due"/>
-                </div>
-                <div class="col-auto flex-grow-1 border-end" t-if="o.invoice_origin">
-                    <strong class="text-uppercase text-muted d-block mb-1" style="font-size: 0.75em;">Orden de Compra / Ref</strong>
-                    <div class="fw-bold text-dark" t-field="o.invoice_origin"/>
-                </div>
-                <div class="col-auto flex-grow-1" t-if="o.ref">
-                    <strong class="text-uppercase text-muted d-block mb-1" style="font-size: 0.75em;">Referencia Interna</strong>
-                    <div class="fw-bold text-dark" t-field="o.ref"/>
-                </div>
+        <!-- ============================================================
+             B. COMPLEMENTO AL BLOQUE DE INFORMACIÓN
+             El nativo ya tiene: fecha, vencimiento, origen, ref.
+             Nosotros añadimos: Forma de pago y Método de pago.
+             ============================================================ -->
+        <xpath expr="//div[@id='informations']" position="inside">
+            <div class="col-auto" t-if="o.l10n_co_edi_payment_option_id" name="payment_method">
+                <strong>Método de pago:</strong>
+                <p class="m-0" t-field="o.l10n_co_edi_payment_option_id"/>
+            </div>
+            <div class="col-auto" name="payment_form">
+                <strong>Forma de pago:</strong>
+                <p class="m-0">
+                    <t t-if="o.l10n_co_edi_is_direct_payment">Contado</t>
+                    <t t-else="">Crédito</t>
+                </p>
             </div>
         </xpath>
 
-        <!-- C. Valor Total en Letras y Datos Bancarios -->
-        <xpath expr="//div[@id='payment_term']" position="before">
-            <!-- Eliminamos div nativo problemático con condicional si existe -->
-            <style>
-                /* Ocultar amount words nativo */
-                div.mb-2 p.text-end.lh-sm[t-if="o.company_id.display_invoice_amount_total_words"] { display: none !important; }
-            </style>
-            <div class="row mt-4 mb-4 page-break-avoid">
-                <div class="col-12 bg-light p-4 rounded-4 shadow-sm" style="border-left: 5px solid #003498;">
-                    <p class="mb-1 text-uppercase text-muted" style="font-size: 0.85em; letter-spacing: 0.05em;"><strong>Monto Total en Letras (Código de Comercio Art. 621):</strong></p>
-                    <p class="mb-3 fs-5 fw-bold text-dark"><span t-esc="o.amount_to_words or 'Defina el monto para ver el valor en letras'"/></p>
-                    
-                    <hr class="my-2 opacity-25"/>
-                    <div class="d-flex align-items-center mt-3">
-                        <div class="me-3 text-primary">
-                            <!-- Icono de Billetera/Banco -->
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-bank2" viewBox="0 0 16 16">
-                                <path d="M8.277.084a.5.5 0 0 0-.554 0l-7.5 5A.5.5 0 0 0 .5 6h1.875v7H1.5a.5.5 0 0 0 0 1h13a.5.5 0 1 0 0-1h-.875V6H15.5a.5.5 0 0 0 .277-.916l-7.5-5zM12.375 6v7h-1.25V6h1.25zm-2.5 0v7h-1.25V6h1.25zm-2.5 0v7h-1.25V6h1.25zm-2.5 0v7h-1.25V6h1.25zM8 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2zM.5 15a.5.5 0 0 0 0 1h15a.5.5 0 1 0 0-1H.5z"/>
-                            </svg>
-                        </div>
-                        <div>
-                            <p class="mb-0 text-uppercase text-muted" style="font-size: 0.85em;"><strong>Información de Recaudo Bancario:</strong></p>
-                            <p class="mb-0 fs-6">Por favor consignar a: <strong style="color: #003498;"><span t-esc="o.journal_id.bank_account_id.display_name or 'No configurada (Actualice el diario)'"/></strong></p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </xpath>
-
-        <!-- D. Consolidación de Bloque DIAN en Footer (Reemplazamos QRs nativos) -->
-        <xpath expr="//div[@id='qrcode']" position="attributes">
-            <attribute name="style">display: none !important;</attribute>
-        </xpath>
-        <xpath expr="//div[@id='qrcode']" position="after">
-            <!-- QR DIAN: Se construye dinámicamente a partir del CUFE (aprendizaje dian-habilitacion línea 143) -->
-            <t t-set="dian_qr_url" t-value="'https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey=%s' % o.l10n_co_edi_cufe_cude_ref if o.l10n_co_edi_cufe_cude_ref else ''"/>
-            <t t-set="show_dian_qr" t-value="bool(dian_qr_url)"/>
-            <div class="row mt-5 pt-4 border-top avoid-page-break-inside" id="dian_footer_block">
-                <div class="col-2 text-center" t-if="show_dian_qr">
-                    <img t-att-src="'/report/barcode/?barcode_type=QR&amp;value=%s&amp;width=120&amp;height=120' % dian_qr_url" class="shadow-sm rounded" style="width: 100%; max-width: 120px;"/>
-                </div>
-                <div class="col-10" style="font-size: 0.85em; line-height: 1.5;">
-                    <p class="mb-2 text-uppercase fw-bold" style="color: #003498;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-shield-check me-1" viewBox="0 0 16 16">
-                            <path d="M5.338 1.59a61.44 61.44 0 0 0-2.837.856.481.481 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.725 10.725 0 0 0 2.287 2.233c.346.244.652.42.893.533.12.057.218.095.293.118a.55.55 0 0 0 .101.025.615.615 0 0 0 .1-.025c.076-.023.174-.061.294-.118.24-.113.547-.29.893-.533a10.726 10.726 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524zM5.072.56C6.157.265 7.31 0 8 0s1.843.265 2.928.56c1.11.3 2.229.655 2.887.87a1.54 1.54 0 0 1 1.044 1.262c.596 4.477-.787 7.795-2.465 9.99a11.777 11.777 0 0 1-2.517 2.453 7.159 7.159 0 0 1-1.048.625c-.28.132-.581.24-.829.24s-.548-.108-.829-.24a7.158 7.158 0 0 1-1.048-.625 11.777 11.777 0 0 1-2.517-2.453C1.928 10.487.545 7.169 1.141 2.692A1.54 1.54 0 0 1 2.185 1.43 62.456 62.456 0 0 1 5.072.56z"/>
-                            <path d="M10.854 5.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7.5 7.793l2.646-2.647a.5.5 0 0 1 .708 0z"/>
-                        </svg>
-                        Información Tributaria Requerida por la DIAN (Resolución 000165)
+        <!-- ============================================================
+             C. VALOR EN LETRAS + RECAUDO BANCARIO
+             Se inyecta DESPUÉS de los totales, antes de payment_term.
+             ============================================================ -->
+        <xpath expr="//div[@id='total']" position="after">
+            <div class="row mt-3 mb-3">
+                <div class="col-12">
+                    <p class="mb-1"><strong>Monto Total en Letras (Código de Comercio Art. 621):</strong></p>
+                    <p class="fw-bold mb-2">
+                        <span t-esc="o.amount_to_words or ''"/>
                     </p>
-                    <div class="row">
-                        <div class="col-12 mb-1">
-                            <strong>CUFE / CUDE:</strong>
-                            <p class="text-muted d-inline font-monospace" style="word-break: break-all; font-size: 0.9em;"><span t-esc="o.l10n_co_edi_cufe_cude_ref or 'En proceso de validación DIAN'"/></p>
-                        </div>
-                        <div class="col-12 mb-1" t-if="o.journal_id.l10n_co_edi_dian_authorization_number">
-                            <strong>Resolución DIAN:</strong>
-                            <span class="text-muted"><span t-field="o.journal_id.l10n_co_edi_dian_authorization_number"/>
-                            <span t-if="o.journal_id.l10n_co_edi_min_range_number"> (Rango Autorizado: <span t-field="o.journal_id.l10n_co_edi_min_range_number"/> a <span t-field="o.journal_id.l10n_co_edi_max_range_number"/>)</span></span>
-                        </div>
-                        <div class="col-12 text-muted mt-2" style="font-size: 0.95em;">
-                            <strong>Proveedor Tecnológico:</strong> ODOO S.A.S | 
-                            <strong>Firma Digital Autónoma:</strong> Adherida como nodo &lt;ds:SignatureValue&gt; en el XML (Representación Gráfica).
-                        </div>
-                    </div>
                 </div>
             </div>
-            
-            <!-- Hide the generic payment link QR to avoid clutter -->
+            <div class="row mb-3" t-if="o.journal_id.bank_account_id">
+                <div class="col-12">
+                    <strong>Referencia de pago:</strong> <span t-field="o.payment_reference"/><br/>
+                    en esta cuenta: <strong><span t-esc="o.journal_id.bank_account_id.display_name"/></strong>
+                </div>
+            </div>
         </xpath>
-        <xpath expr="//div[@id='payment_link_qrcode']" position="attributes">
-            <attribute name="style">display: none !important;</attribute>
+
+        <!-- ============================================================
+             D. CONTENIDO LEGAL TÍTULO VALOR (FOOTER)
+             Se inyecta DESPUÉS de payment_term. No toca #qrcode.
+             El QR y la resolución ya los maneja l10n_co_dian nativo.
+             Aquí solo complementamos: Método pago, Valor letras,
+             CUFE, Firma, Resolución+Rango, y texto legal.
+             ============================================================ -->
+        <xpath expr="//div[@id='payment_term']" position="after">
+            <div class="mt-4 pt-3 border-top" style="font-size: 0.85em; line-height: 1.6;" id="titulo_valor_footer">
+
+                <!-- Método de pago (redundancia legal para footer) -->
+                <p class="mb-1" t-if="o.l10n_co_edi_payment_option_id">
+                    <strong>Método de pago:</strong> <span t-field="o.l10n_co_edi_payment_option_id"/>
+                </p>
+
+                <!-- Valor en letras (redundancia legal) -->
+                <p class="mb-1">
+                    <strong>Valor en letras:</strong>
+                    <span t-esc="o.amount_to_words or ''"/>
+                </p>
+
+                <!-- CUFE / CUDE -->
+                <p class="mb-1" t-if="o.l10n_co_edi_cufe_cude_ref">
+                    <strong>CUFE:</strong>
+                    <span t-esc="o.l10n_co_edi_cufe_cude_ref" style="word-break: break-all;"/>
+                </p>
+
+                <!-- Firma Digital (extraída del XML firmado) -->
+                <t t-set="signature_value" t-value="o._get_dian_signature_value()"/>
+                <p class="mb-1" t-if="signature_value">
+                    <strong>Firma:</strong>
+                    <span t-esc="signature_value" style="word-break: break-all;"/>
+                </p>
+
+                <!-- Resolución + Rango (complemento textual) -->
+                <p class="mb-1" t-if="o.journal_id.l10n_co_edi_dian_authorization_number">
+                    <strong>Número de autorización de facturación:</strong>
+                    <span t-field="o.journal_id.l10n_co_edi_dian_authorization_number"/>
+                    Fecha: <span t-field="o.journal_id.l10n_co_edi_dian_authorization_date"/>
+                </p>
+                <p class="mb-1" t-if="o.journal_id.l10n_co_edi_min_range_number">
+                    <strong>Rango autorizado desde:</strong>
+                    <span t-esc="o.sequence_prefix"/> <span t-field="o.journal_id.l10n_co_edi_min_range_number"/>
+                    a <span t-esc="o.sequence_prefix"/> <span t-field="o.journal_id.l10n_co_edi_max_range_number"/>
+                    Válido desde: <span t-field="o.journal_id.l10n_co_edi_dian_authorization_date"/>
+                    a <span t-field="o.journal_id.l10n_co_edi_dian_authorization_end_date"/>
+                </p>
+
+                <!-- Texto legal obligatorio -->
+                <p class="mt-2 text-muted text-center" style="font-size: 0.85em;">
+                    Representación gráfica de facturación electrónica impresa por computador con software propio por
+                    <span t-field="o.company_id.name"/>
+                </p>
+            </div>
         </xpath>
 
     </template>

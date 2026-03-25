@@ -161,6 +161,31 @@ class AccountMove(models.Model):
                 text = f"SON: {text.upper()} M/CTE"
             move.amount_to_words = text
 
+    def _get_dian_signature_value(self):
+        """Extract ds:SignatureValue from the signed DIAN XML attachment.
+
+        The signed XML lives in l10n_co_dian_attachment_id (ir.attachment).
+        We parse it with lxml to extract the SignatureValue node.
+        Returns the base64 hash string or empty if not available.
+        """
+        self.ensure_one()
+        attachment = getattr(self, 'l10n_co_dian_attachment_id', False)
+        if not attachment:
+            return ''
+        try:
+            import base64
+            from lxml import etree
+            content = base64.b64decode(attachment.datas)
+            root = etree.fromstring(content)
+            # SignatureValue lives under ds: namespace
+            ns = {'ds': 'http://www.w3.org/2000/09/xmldsig#'}
+            sig_nodes = root.findall('.//ds:SignatureValue', ns)
+            if sig_nodes and sig_nodes[0].text:
+                return sig_nodes[0].text.strip()
+        except Exception:
+            pass
+        return ''
+
     @api.depends('move_type', 'journal_id', 'company_id')
     def _compute_insotech_is_co_edi(self):
         """Determine if a move is a Colombian EDI invoice.
