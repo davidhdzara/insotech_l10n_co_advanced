@@ -167,3 +167,24 @@ class TestPreInv(AccountTestInvoicingCommon):
         self.assertEqual(vendor_bill.insotech_dian_status, 'not_applicable', "Status should bypass to 'not_applicable'.")
         self.assertFalse(vendor_bill.insotech_pre_inv_name, "No PRE-INV name should be allocated.")
 
+    def test_05_contingency_mutation_immediate(self):
+        """Escenario 5: Contingency Mutation (Tipo 04).
+        
+        Al pasar a contingencia, el nombre PRE-INV debe mutar inmediatamente al nombre legal
+        sin importar la red DIAN, porque se imprime un PDF legal offline.
+        """
+        invoice = self._create_invoice(self.journal_dian)
+        invoice.action_post()
+
+        # Step 1: Verify it is PRE-INV
+        pre_inv_name = invoice.name
+        self.assertTrue(pre_inv_name.startswith('PRE-INV'), "Invoice did not acquire PRE-INV name.")
+        self.assertEqual(invoice.insotech_dian_status, 'pending')
+
+        # Step 2: User changes to Contingency Type 04 (Simulating PDF print need)
+        invoice.write({'l10n_co_edi_operation_type': '04'})
+
+        # Step 3: Validate immediate mutation to legal sequence and PRE-INV memory destruction
+        self.assertFalse(invoice.name.startswith('PRE-INV'), "Contingency invoice must drop PRE-INV immediately.")
+        self.assertTrue(invoice.name.startswith('TV_DI'), "Invoice must adopt the legal DIAN sequence prefix.")
+        self.assertFalse(invoice.insotech_pre_inv_name, "PRE-INV memory must be wiped to lock the sequence.")
