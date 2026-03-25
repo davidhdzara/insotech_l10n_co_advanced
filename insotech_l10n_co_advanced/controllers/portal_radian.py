@@ -83,13 +83,14 @@ class RadianPortalController(http.Controller):
             event.sudo().action_send_to_dian()
             
             if event.state == 'error':
-                return _redirect_msg(invoice_sudo, 'radian_error', _(f'Transmisión fallida: {event.notes}'))
+                safe_err_msg = str(event.notes)[:250] + "..." if event.notes and len(str(event.notes)) > 250 else str(event.notes)
+                return self._redirect_msg(invoice_sudo, 'radian_error', _(f'Transmisión fallida: {safe_err_msg}'))
             
-            return _redirect_msg(invoice_sudo, 'radian_success', _(f'Evento {event_code} transmitido con éxito (Código Validación DIAN: {event.notes[-30:] if event.notes else "OK"}).'))
+            return self._redirect_msg(invoice_sudo, 'radian_success', _(f'Evento {event_code} transmitido con éxito (Código Validación DIAN: {str(event.notes)[:50] if event.notes else "OK"}).'))
 
         except Exception as e:
             _logger.error("Insotech RADIAN Portal: Error creating event %s: %s", event_code, str(e))
-            return _redirect_msg(invoice_sudo, 'radian_error', _('Ocurrió un error registrando el evento RADIAN.'))
+            return self._redirect_msg(invoice_sudo, 'radian_error', _('Ocurrió un error registrando el evento RADIAN.'))
 
     def _document_check_access(self, model_name, document_id, access_token=None):
         """Helper to check access rights using core Odoo mechanism."""
