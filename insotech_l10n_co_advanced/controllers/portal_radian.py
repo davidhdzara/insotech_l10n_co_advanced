@@ -32,7 +32,7 @@ class RadianPortalController(http.Controller):
             return request.redirect(invoice_sudo.get_portal_url(error=_('Debe aceptar el mandato legal para continuar.')))
 
         # 3. Validation: Invoice state must be 'accepted' by DIAN
-        if not invoice_sudo.l10n_co_edi_dian_state == 'accepted':
+        if not invoice_sudo.insotech_dian_status == 'accepted':
             return request.redirect(invoice_sudo.get_portal_url(error=_('La factura no ha sido aceptada por la DIAN todavía.')))
 
         # 4. Create RADIAN Event

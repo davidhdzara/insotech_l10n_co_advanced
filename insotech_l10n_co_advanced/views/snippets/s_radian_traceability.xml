@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <template id="s_radian_traceability" name="Trazabilidad Legal DIAN">
-        <t t-if="invoice.l10n_co_edi_dian_state == 'accepted'">
+        <t t-if="invoice.insotech_dian_status == 'accepted'">
             <style type="text/css">
                 .insotech-radian-card {
                     transition: transform 0.2s ease, box-shadow 0.2s ease;

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <template id="s_radian_actions" name="Acciones RADIAN">
-        <t t-if="invoice.l10n_co_edi_dian_state == 'accepted'">
+        <t t-if="invoice.insotech_dian_status == 'accepted'">
             <style type="text/css">
                 .insotech-radian-btn {
                     transition: all 0.2s ease;
