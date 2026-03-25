@@ -22,6 +22,26 @@ def _compute_dv(nit_str):
     remainder = total % 11
     return str(11 - remainder) if remainder >= 2 else str(remainder)
 
+def _clean_nit(vat_str, partner_record=None):
+    """Garantiza que el NIT no lleve giones ni el dígito de verificación empotrado."""
+    if not vat_str:
+        return ''
+    vat_str = str(vat_str).replace(' ', '').replace('.','').replace(',','')
+    if '-' in vat_str:
+        vat_str = vat_str.split('-')[0]
+    
+    # Check if doc_type is conceptually a NIT (31)
+    doc_type = getattr(partner_record, 'l10n_co_document_type', False)
+    if not doc_type and hasattr(partner_record, 'l10n_latam_identification_type_id'):
+        doc_type = getattr(partner_record.l10n_latam_identification_type_id, 'l10n_co_document_code', False)
+        
+    # If it's a NIT and user typed 10 digits, the 10th is likely the DV (e.g. 9017972495)
+    doc_type_str = str(doc_type).lower()
+    if (doc_type_str == '31' or doc_type_str == 'rut') and len(vat_str) == 10 and vat_str.isdigit():
+        return vat_str[:9]
+    
+    return vat_str
+
 def _get_claim_description(code):
     if code == '01': return 'Documento con inconsistencias'
     if code == '02': return 'Mercancía no entregada totalmente'
@@ -64,8 +84,8 @@ def generate_application_response(event):
     hor_ar = event_dt.strftime('%H:%M:%S-05:00')
     
     # Emitida por el Facturador (Seller, NitOFE). Adquiriente (Buyer, NitAdq).
-    nit_ofe = partner.vat or ''
-    nit_adq = company.vat or ''
+    nit_ofe = _clean_nit(partner.vat, partner)
+    nit_adq = _clean_nit(company.vat, company.partner_id)
     
     dv_ofe = _compute_dv(nit_ofe)
     dv_adq = _compute_dv(nit_adq)
