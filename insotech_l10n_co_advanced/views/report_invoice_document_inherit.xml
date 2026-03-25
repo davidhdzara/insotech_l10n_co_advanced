@@ -92,7 +92,7 @@
         <xpath expr="//div[@id='qrcode']" position="attributes">
             <attribute name="style">display: none !important;</attribute>
         </xpath>
-        <xpath expr="//div[@id='qrcode']" position="before">
+        <xpath expr="//div[@id='qrcode']" position="after">
             <t t-set="show_qr" t-value="o.l10n_co_edi_qr or o.display_qr_code"/>
             <div class="row mt-5 pt-4 border-top avoid-page-break-inside" id="dian_footer_block">
                 <div class="col-2 text-center" t-if="show_qr">
