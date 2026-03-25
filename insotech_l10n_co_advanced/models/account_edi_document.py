@@ -108,15 +108,12 @@ class AccountEdiDocument(models.Model):
 
         for move in moves_to_reject:
             try:
-                # Extract clean text from HTML error
-                clean_error = error_message
-                if clean_error and '<' in str(clean_error):
-                    try:
-                        from lxml import html as lxml_html
-                        doc_tree = lxml_html.fromstring(str(clean_error))
-                        clean_error = doc_tree.text_content().strip()
-                    except Exception:
-                        pass
+                # Sanitize HTML from DIAN error using 2-layer strategy
+                # (lxml → regex fallback → html.escape last resort)
+                from ..services.dian_error_translator import (
+                    sanitize_dian_error,
+                )
+                clean_error = sanitize_dian_error(error_message)
 
                 _logger.warning(
                     "Insotech: DIAN rejection detected via EDI document "
@@ -124,7 +121,7 @@ class AccountEdiDocument(models.Model):
                     move.id, move.name, clean_error
                 )
                 move._insotech_process_dian_rejection(
-                    error_message=clean_error or 'Error reportado por la DIAN'
+                    error_message=clean_error
                 )
             except Exception as e:
                 _logger.error(

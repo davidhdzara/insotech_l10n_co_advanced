@@ -649,8 +649,16 @@ class AccountMove(models.Model):
         swapped to the real DIAN name for sending, we must restore
         the PRE-INV name so no consecutive is lost.
 
+        The error message is passed through the DIAN error translator
+        to provide user-friendly diagnostics in the chatter. The
+        original DIAN error is always preserved in a collapsible
+        technical details section.
+
         :param error_message: The error message/reason from the DIAN
+                              (must be pre-sanitized — no raw HTML)
         """
+        from ..services.dian_error_translator import translate_dian_error
+
         for move in self:
             if move.insotech_dian_status not in ('pending', 'rejected'):
                 _logger.warning(
@@ -680,19 +688,198 @@ class AccountMove(models.Model):
                 skip_account_move_synchronization=True,
             ).write(vals)
 
-            # Log in chatter
-            move.message_post(
-                body=Markup(
+            # ── Diagnóstico Inteligente ──
+            # Translate the DIAN error into a user-friendly message
+            diagnosis = translate_dian_error(error_message)
+            display_name = pre_inv or move.name
+
+            if diagnosis:
+                # Build actionable link based on error category
+                link_html = Markup('')
+                if diagnosis['category'] == 'partner' and move.partner_id:
+                    link_html = Markup(
+                        '<br/>🔗 <a href="/odoo/contacts/%s">'
+                        'Abrir contacto para corregir</a>'
+                    ) % move.partner_id.id
+                elif diagnosis['category'] == 'journal' \
+                        and move.journal_id:
+                    link_html = Markup(
+                        '<br/>🔗 Revise la configuración del '
+                        'diario <b>%s</b>'
+                    ) % move.journal_id.name
+
+                body = Markup(
                     '❌ <b>Factura rechazada por la DIAN</b>'
-                    '<br/>Nombre temporal conservado: <b>%s</b>'
+                    '<br/>Nombre temporal conservado: '
+                    '<b>%s</b><br/><br/>'
+                    '📋 <b>Diagnóstico InSoTech:</b><br/>'
+                    '%s<br/>'
+                    '<i>%s</i>'
+                    '%s<br/><br/>'
+                    '<details>'
+                    '<summary>🔧 Detalle técnico (DIAN)</summary>'
+                    '<pre>%s</pre>'
+                    '</details><br/>'
+                    'Corrija el error y use '
+                    '<i>"Reintentar Envío DIAN"</i>.'
+                ) % (
+                    display_name,
+                    diagnosis['message'],
+                    diagnosis['details'],
+                    link_html,
+                    error_message or 'Sin detalle',
+                )
+            else:
+                # No match in translator → show raw error
+                body = Markup(
+                    '❌ <b>Factura rechazada por la DIAN</b>'
+                    '<br/>Nombre temporal conservado: '
+                    '<b>%s</b>'
                     '<br/><b>Motivo:</b> %s'
                     '<br/>Corrija el error y use '
                     '<i>"Reintentar Envío DIAN"</i>.'
-                ) % (pre_inv or move.name,
-                     error_message or 'Sin detalle'),
+                ) % (
+                    display_name,
+                    error_message or 'Sin detalle',
+                )
+
+            move.message_post(
+                body=body,
                 message_type='notification',
                 subtype_xmlid='mail.mt_note',
             )
+
+    # -------------------------------------------------------------------------
+    # PRE-VALIDATION — Check partner data before DIAN send
+    # -------------------------------------------------------------------------
+
+    def _insotech_pre_validate_partner_for_dian(self):
+        """Pre-validate partner data for DIAN electronic invoicing.
+
+        Checks critical fields on the partner (vat, city DANE code,
+        zip, street, department, document type, DV) BEFORE the
+        invoice is sent to the DIAN.
+
+        If validation fails:
+        - Posts a detailed message in the chatter with a link to
+          the partner record
+        - Raises UserError listing all missing/invalid fields
+
+        If validation passes: does nothing (no performance cost).
+        """
+        for move in self:
+            if not move.insotech_is_co_edi:
+                continue
+            partner = move.partner_id
+            if not partner:
+                continue
+
+            issues = []
+
+            # 1. VAT / NIT
+            if not partner.vat:
+                issues.append((
+                    'NIT / Cédula',
+                    'Complete el número de identificación',
+                ))
+
+            # 2. Tipo de documento de identidad
+            id_type = getattr(
+                partner, 'l10n_latam_identification_type_id', None
+            )
+            if not id_type:
+                issues.append((
+                    'Tipo de documento',
+                    'Seleccione CC, NIT, CE, etc.',
+                ))
+
+            # 3. DV para NIT (código 31)
+            if id_type:
+                doc_code = getattr(
+                    id_type, 'l10n_co_document_code', ''
+                )
+                if doc_code == '31':   # NIT
+                    dv = getattr(
+                        partner,
+                        'l10n_co_verification_digit', None,
+                    )
+                    if not dv:
+                        issues.append((
+                            'Dígito de verificación',
+                            'Obligatorio para NIT — '
+                            'calcúlelo o ingréselo manualmente',
+                        ))
+
+            # 4. Ciudad con código DANE
+            city = getattr(partner, 'city_id', None)
+            if not city:
+                issues.append((
+                    'Ciudad',
+                    'Seleccione una ciudad con código DANE',
+                ))
+            else:
+                dane_code = getattr(city, 'l10n_co_code', None)
+                if not dane_code:
+                    issues.append((
+                        'Ciudad',
+                        'La ciudad "%s" no tiene código DANE'
+                        % city.name,
+                    ))
+
+            # 5. Código postal
+            if not partner.zip:
+                issues.append((
+                    'Código postal',
+                    'Ingrese un código postal válido (6 dígitos)',
+                ))
+
+            # 6. Dirección
+            if not partner.street:
+                issues.append((
+                    'Dirección',
+                    'Ingrese la dirección del contacto',
+                ))
+
+            # 7. Departamento
+            if not partner.state_id:
+                issues.append((
+                    'Departamento',
+                    'Seleccione el departamento',
+                ))
+
+            if not issues:
+                continue
+
+            # Build chatter message with link to partner
+            items_html = Markup('')
+            for field_name, action in issues:
+                items_html += Markup(
+                    '<br/>• <b>%s</b> → %s'
+                ) % (field_name, action)
+
+            move.message_post(
+                body=Markup(
+                    '⚠️ <b>Pre-validación DIAN — '
+                    'Datos incompletos</b><br/>'
+                    'El contacto <b>%s</b> tiene campos '
+                    'obligatorios faltantes para facturación '
+                    'electrónica:%s<br/><br/>'
+                    '🔗 <a href="/odoo/contacts/%s">'
+                    'Abrir contacto para corregir</a>'
+                ) % (partner.name, items_html, partner.id),
+                message_type='notification',
+                subtype_xmlid='mail.mt_note',
+            )
+
+            raise UserError(_(
+                "⚠️ El contacto \"%s\" tiene datos incompletos "
+                "para facturación electrónica DIAN:\n\n%s\n\n"
+                "Corrija los campos indicados antes de enviar.",
+                partner.name,
+                '\n'.join(
+                    '• %s → %s' % (f, a) for f, a in issues
+                ),
+            ))
 
     # -------------------------------------------------------------------------
     # DIAN SEND INTERCEPTION — License Validation
@@ -1090,6 +1277,9 @@ class AccountMove(models.Model):
 
         # ── Capa 2: Pre-send duplicate check ──
         self._insotech_check_duplicate_consecutive()
+
+        # ── Capa 3: Pre-validate partner data ──
+        self._insotech_pre_validate_partner_for_dian()
 
         self._insotech_swap_to_dian_name()
         try:
