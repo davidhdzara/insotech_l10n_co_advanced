@@ -36,6 +36,7 @@
         'data/cron_contingency.xml',
         'views/account_move_views.xml',
         'views/account_journal_views.xml',
+        'views/report_invoice_document_inherit.xml',
         'views/snippets/s_radian_traceability.xml',
         'views/snippets/s_radian_actions.xml',
         'views/portal_radian_templates.xml',

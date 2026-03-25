@@ -112,6 +112,12 @@ class AccountMove(models.Model):
              "electrónica colombiana ante la DIAN."
     )
 
+    amount_to_words = fields.Char(
+        string="Monto en Letras (RADIAN)",
+        compute="_compute_amount_to_words",
+        help="Monto total en letras requerido por el Código de Comercio."
+    )
+
     # -- Resolution counter fields (Feature 2) --
 
     insotech_resolution_used = fields.Integer(
@@ -145,6 +151,15 @@ class AccountMove(models.Model):
     # -------------------------------------------------------------------------
     # COMPUTED FIELDS
     # -------------------------------------------------------------------------
+
+    @api.depends('amount_total', 'currency_id')
+    def _compute_amount_to_words(self):
+        for move in self:
+            text = move.currency_id.amount_to_text(move.amount_total) if move.currency_id else ''
+            # Formateo estricto para presentación de títulos valor
+            if text:
+                text = f"SON: {text.upper()} M/CTE"
+            move.amount_to_words = text
 
     @api.depends('move_type', 'journal_id', 'company_id')
     def _compute_insotech_is_co_edi(self):
