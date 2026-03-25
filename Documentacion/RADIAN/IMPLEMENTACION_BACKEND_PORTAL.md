@@ -49,3 +49,14 @@ Odoo 19 introdujo una disrupción en su clase web `PortalMixin`. Cuando los midd
 
 ---
 **Resultado:** Cero dependencias IAP, latencias sub-segundo para la validación web, sin bloqueos asíncronos u operaciones CRON retenidas. El usuario pulsa, firma, transmite, y el Título Valor nace en la nube DIAN en un solo evento atómico.
+
+---
+
+## 7. Guía Crítica de Migración a Odoo V18 para Futuros Agentes
+
+Si estás leyendo este documento (`IMPLEMENTACION_BACKEND_PORTAL.md`) porque te asignaron la tarea de portar este desarrollo de la versión `19.0` a la `18.0`, ten en cuenta los siguientes **GAPs técnicos**:
+
+1. **Bug Criptográfico Nativos (PEM):** Odoo 19 introdujo un `TypeError` severo en el modelo `certificate` de su core porque intenta inyectar passwords (`pwd`) a llaves `PEM` en texto plano (unencrypted), tumbando la interfaz (`res.partner.onchange`) y el XML Signer propio de Odoo. **En Odoo 18, es posible que ese bug no exista o se comporte distinto.** Aún así, debes **mantener el "Monkey-Patch"** (`_l10n_co_dian_onchange_identification_type` en `res_partner.py`) y usar el `xml_signer` propio desarrollado aquí para mantener el sistema Aislado y Anti-frágil.
+2. **Campos DIAN Volátiles:** Odoo 18 acostumbra usar nombres distintos para los campos de tributación. El dígito de verificación en Odoo 19 se perdió/cambió, obligándonos a programar el algoritmo Módulo-11 manual (`_compute_dv`) en nuestro `radian_xml_builder.py`. **Mantenlo así en V18.** No dependas NUNCA de los campos nativos de Odoo (ej. `l10n_co_edi_dv`, `l10n_co_verification_code`) para formar XMLs ante la DIAN, porque cambian la base de datos de versión a versión.
+3. **Plantillas del Portal QWeb (`account.portal_invoice_page`):** La inyección de nuestro panel lateral RADIAN se hizo atacando los XPaths `//div[@id='invoice_communication']` y `//p[@name='payment_communication']`. Revisa en Odoo 18 si el core template cambió los ID's de esos wrappers visuales o no inyectará la barra lateral de botones.
+4. **Alerta Vacía (Blank Error Box):** No intentes regresar a usar `error=` en el `get_portal_url()` nativo del controlador. Odoo 18 y Odoo 19 rompen silenciosamente la plantilla mostrando "Cajas Rojas" vacías dependiendo de si pasas strings, listas o diccionarios. Usa **siempre** nuestro workaround seguro con URLEncode en el controlador inyectando variables HTML estáticas `?radian_error=` y renderizándolas con tu propio `<div t-if="radian_error">`.
