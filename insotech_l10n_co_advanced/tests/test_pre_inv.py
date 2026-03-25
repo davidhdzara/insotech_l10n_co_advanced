@@ -32,7 +32,7 @@ class TestPreInv(AccountTestInvoicingCommon):
             'name': 'Colombian Corp SAS',
             'is_company': True,
             'country_id': co_country.id if co_country else False,
-            'vat': '900123456',
+            'vat': '901797249-5',
         })
         nit_type = cls.env.ref('l10n_latam_base.it_nit', raise_if_not_found=False)
         if nit_type:
