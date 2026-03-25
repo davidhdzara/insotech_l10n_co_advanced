@@ -34,7 +34,7 @@
 
                     <!-- Botón 030 (Acuse) -->
                     <t t-if="'030' not in events">
-                        <button type="submit" formaction="?radian_action=030" onclick="this.form.action='/my/invoices/' + parseInt(this.form.elements['invoice_id'] || 0) + '/radian/030';" class="btn btn-primary btn-block w-100 mb-2 py-2">
+                        <button type="submit" t-attf-formaction="/my/invoices/{{ invoice.id }}/radian/030" class="btn btn-primary btn-block w-100 mb-2 py-2">
                             <i class="fa fa-envelope"/> Acuse de Recibo (030)
                         </button>
                     </t>
@@ -42,7 +42,7 @@
                     <!-- Botón 032 (Recibo del bien) -->
                     <t t-if="'030' in events and '032' not in events and '031' not in events">
                         <div class="alert alert-info py-2 px-3 mb-2 small text-center"><i class="fa fa-info-circle"/> Acuse 030 registrado.</div>
-                        <button type="submit" formaction="?radian_action=032" onclick="this.form.action='/my/invoices/' + parseInt(this.form.elements['invoice_id'] || 0) + '/radian/032';" class="btn btn-primary btn-block w-100 mb-2 py-2">
+                        <button type="submit" t-attf-formaction="/my/invoices/{{ invoice.id }}/radian/032" class="btn btn-primary btn-block w-100 mb-2 py-2">
                             <i class="fa fa-truck"/> Recibo de Mercancía/Servicio (032)
                         </button>
                     </t>
@@ -51,7 +51,7 @@
                     <t t-if="'032' in events and '033' not in events and '034' not in events and '031' not in events">
                         <div class="alert alert-info py-2 px-3 mb-2 small text-center"><i class="fa fa-check"/> Mercancía recibida.</div>
                         
-                        <button type="submit" formaction="?radian_action=033" onclick="this.form.action='/my/invoices/' + parseInt(this.form.elements['invoice_id'] || 0) + '/radian/033';" class="btn btn-primary btn-block w-100 mb-2 py-2">
+                        <button type="submit" t-attf-formaction="/my/invoices/{{ invoice.id }}/radian/033" class="btn btn-primary btn-block w-100 mb-2 py-2">
                             <i class="fa fa-thumbs-up"/> Aceptación Expresa (033)
                         </button>
                         
@@ -65,13 +65,13 @@
                                 </select>
                             </div>
                             <div class="col-4">
-                                <button type="submit" formaction="?radian_action=034" onclick="this.form.action='/my/invoices/' + parseInt(this.form.elements['invoice_id'] || 0) + '/radian/034';" class="btn btn-warning w-100 h-100">
+                                <button type="submit" t-attf-formaction="/my/invoices/{{ invoice.id }}/radian/034" class="btn btn-warning w-100 h-100">
                                     Reclamo
                                 </button>
                             </div>
                         </div>
 
-                        <button type="submit" formaction="?radian_action=031" onclick="this.form.action='/my/invoices/' + parseInt(this.form.elements['invoice_id'] || 0) + '/radian/031';" class="btn btn-secondary btn-block w-100 mt-2 py-2">
+                        <button type="submit" t-attf-formaction="/my/invoices/{{ invoice.id }}/radian/031" class="btn btn-secondary btn-block w-100 mt-2 py-2">
                             <i class="fa fa-times"/> Rechazo Total (031)
                         </button>
                     </t>
