@@ -35,16 +35,16 @@ class RadianPortalController(http.Controller):
         mandate_accepted = post.get('mandate_accepted') == '1'
         if not mandate_accepted:
             # Mandate not accepted, redirect back with error
-            return _redirect_msg(invoice_sudo, 'error', _('Debe aceptar el mandato legal para continuar.'))
+            return _redirect_msg(invoice_sudo, 'radian_error', _('Debe aceptar el mandato legal para continuar.'))
 
         # 3. Validation: Invoice state must be 'accepted' by DIAN
         if not invoice_sudo.insotech_dian_status == 'accepted':
-            return _redirect_msg(invoice_sudo, 'error', _('La factura no ha sido aceptada por la DIAN todavía.'))
+            return _redirect_msg(invoice_sudo, 'radian_error', _('La factura no ha sido aceptada por la DIAN todavía.'))
 
         # 4. Create RADIAN Event
         valid_codes = ['030', '031', '032', '033', '034']
         if event_code not in valid_codes:
-            return _redirect_msg(invoice_sudo, 'error', _('Código de evento RADIAN inválido.'))
+            return _redirect_msg(invoice_sudo, 'radian_error', _('Código de evento RADIAN inválido.'))
 
         client_ip = request.httprequest.remote_addr
         now = datetime.datetime.now()
@@ -57,7 +57,7 @@ class RadianPortalController(http.Controller):
         ])
 
         if existing:
-            return _redirect_msg(invoice_sudo, 'warning', _('Este evento ya fue registrado previamente.'))
+            return _redirect_msg(invoice_sudo, 'radian_warning', _('Este evento ya fue registrado previamente.'))
 
         # Create record capturing Forensic Evidence
         try:
@@ -83,13 +83,13 @@ class RadianPortalController(http.Controller):
             event.sudo().action_send_to_dian()
             
             if event.state == 'error':
-                return _redirect_msg(invoice_sudo, 'error', _(f'Error de la DIAN: {event.notes}'))
+                return _redirect_msg(invoice_sudo, 'radian_error', _(f'Transmisión fallida: {event.notes}'))
             
-            return _redirect_msg(invoice_sudo, 'success', _(f'Evento {event_code} registrado y transmitido a la DIAN con éxito.'))
+            return _redirect_msg(invoice_sudo, 'radian_success', _(f'Evento {event_code} transmitido con éxito (Código Validación DIAN: {event.notes[-30:] if event.notes else "OK"}).'))
 
         except Exception as e:
             _logger.error("Insotech RADIAN Portal: Error creating event %s: %s", event_code, str(e))
-            return _redirect_msg(invoice_sudo, 'error', _('Ocurrió un error registrando el evento RADIAN.'))
+            return _redirect_msg(invoice_sudo, 'radian_error', _('Ocurrió un error registrando el evento RADIAN.'))
 
     def _document_check_access(self, model_name, document_id, access_token=None):
         """Helper to check access rights using core Odoo mechanism."""

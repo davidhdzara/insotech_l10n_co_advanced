@@ -4,6 +4,25 @@
         <t t-if="invoice.insotech_dian_status == 'accepted'">
             <t t-set="events" t-value="invoice.env['insotech.radian.event'].sudo().search([('move_id', '=', invoice.id), ('state', '!=', 'error')]).mapped('event_code')"/>
             <div class="o_portal_radian_actions mt-3">
+                
+                <!-- Custom RADIAN Alerts bypassing Odoo default broken renderer -->
+                <t t-set="radian_error" t-value="request.params.get('radian_error')"/>
+                <t t-set="radian_success" t-value="request.params.get('radian_success')"/>
+                <t t-set="radian_warning" t-value="request.params.get('radian_warning')"/>
+                
+                <div t-if="radian_error" class="alert alert-danger alert-dismissible fade show p-2 small mb-3" role="alert">
+                    <i class="fa fa-exclamation-circle me-1"/> <strong t-esc="radian_error"/>
+                    <button type="button" class="btn-close btn-sm" data-bs-dismiss="alert" aria-label="Close" style="padding: 0.5rem;"></button>
+                </div>
+                <div t-if="radian_warning" class="alert alert-warning alert-dismissible fade show p-2 small mb-3" role="alert">
+                    <i class="fa fa-exclamation-triangle me-1"/> <strong t-esc="radian_warning"/>
+                    <button type="button" class="btn-close btn-sm" data-bs-dismiss="alert" aria-label="Close" style="padding: 0.5rem;"></button>
+                </div>
+                <div t-if="radian_success" class="alert alert-success alert-dismissible fade show p-2 small mb-3" role="alert">
+                    <i class="fa fa-check-circle me-1"/> <strong t-esc="radian_success"/>
+                    <button type="button" class="btn-close btn-sm" data-bs-dismiss="alert" aria-label="Close" style="padding: 0.5rem;"></button>
+                </div>
+                
                 <h5 class="mb-3 d-none d-md-block">Título Valor (RADIAN)</h5>
                 
                 <form method="post" class="w-100 form-radian-actions">
