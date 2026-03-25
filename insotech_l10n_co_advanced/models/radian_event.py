@@ -259,7 +259,9 @@ class RadianEvent(models.Model):
                 xml_bytes = xml_string.encode('utf-8')
 
                 # 2. Extract PIN and .p12 data
-                p12_bytes = company.insotech_dian_cert_file
+                import base64
+                p12_b64 = company.insotech_dian_cert_file
+                p12_bytes = base64.b64decode(p12_b64) if p12_b64 else b''
                 p12_pass = company.insotech_dian_cert_password
 
                 # 3. Apply XAdES-EPES Signature

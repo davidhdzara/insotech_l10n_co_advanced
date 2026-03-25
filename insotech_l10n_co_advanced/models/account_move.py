@@ -987,6 +987,11 @@ class AccountMove(models.Model):
             if not move.insotech_is_co_edi:
                 continue
 
+            # Bypass duplicate check if invoice is already accepted
+            # This allows native Odoo to resend the PDF/XML via email
+            if move.insotech_dian_status == 'accepted':
+                continue
+
             journal = move.journal_id
             param_key = (
                 'insotech.dian.last_consecutive.%d'
