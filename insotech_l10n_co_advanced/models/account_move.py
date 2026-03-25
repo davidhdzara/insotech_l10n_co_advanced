@@ -847,32 +847,37 @@ class AccountMove(models.Model):
                     'Seleccione el departamento',
                 ))
 
+            # 8. Obligaciones y Responsabilidades
+            obligations = getattr(
+                partner, 'l10n_co_edi_obligation_type_ids', None
+            )
+            if not obligations:
+                issues.append((
+                    'Obligaciones y Responsabilidades',
+                    'Seleccione al menos una obligación (ej: R-99-PN)',
+                ))
+
+            # 9. Código UNSPSC en los productos facturados
+            for line in move.invoice_line_ids:
+                if line.display_type or not line.product_id:
+                    continue
+                unspsc = getattr(line.product_id, 'unspsc_code_id', None)
+                if not unspsc:
+                    issues.append((
+                        'Código UNSPSC (Líneas)',
+                        'El producto "%s" no tiene configurada la '
+                        'Categoría de UNSPSC' % line.product_id.name,
+                    ))
+
             if not issues:
                 continue
 
-            # Build chatter message with link to partner
-            items_html = Markup('')
-            for field_name, action in issues:
-                items_html += Markup(
-                    '<br/>• <b>%s</b> → %s'
-                ) % (field_name, action)
-
-            move.message_post(
-                body=Markup(
-                    '⚠️ <b>Pre-validación DIAN — '
-                    'Datos incompletos</b><br/>'
-                    'El contacto <b>%s</b> tiene campos '
-                    'obligatorios faltantes para facturación '
-                    'electrónica:%s<br/><br/>'
-                    '🔗 <a href="/odoo/contacts/%s">'
-                    'Abrir contacto para corregir</a>'
-                ) % (partner.name, items_html, partner.id),
-                message_type='notification',
-                subtype_xmlid='mail.mt_note',
-            )
+            # We DO NOT post to chatter here because the UserError
+            # rolls back the database transaction, deleting the message.
+            # The UserError popup is sufficient to guide the user.
 
             raise UserError(_(
-                "⚠️ El contacto \"%s\" tiene datos incompletos "
+                "⚠️ La factura de \"%s\" tiene datos incompletos "
                 "para facturación electrónica DIAN:\n\n%s\n\n"
                 "Corrija los campos indicados antes de enviar.",
                 partner.name,
