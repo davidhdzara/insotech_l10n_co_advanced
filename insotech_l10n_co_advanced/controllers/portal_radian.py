@@ -73,11 +73,13 @@ class RadianPortalController(http.Controller):
                 message_type='comment',
             )
             
-            # Note: At this point, integrating with insotech_dian_wizard XAdES signing
-            # would happen via a cron or direct call. We mark as done and let background process
-            # or we can call it directly if a service method exists.
+            # TRIGGER SOAP TRANSMISSION IMMEDIATELY
+            event.sudo().action_send_to_dian()
             
-            return request.redirect(invoice_sudo.get_portal_url(success=_(f'Evento {event_code} registrado y firmado electrónicamente con éxito.')))
+            if event.state == 'error':
+                return request.redirect(invoice_sudo.get_portal_url(error=_(f'Error de la DIAN: {event.notes}')))
+            
+            return request.redirect(invoice_sudo.get_portal_url(success=_(f'Evento {event_code} registrado y transmitido a la DIAN con éxito.')))
 
         except Exception as e:
             _logger.error("Insotech RADIAN Portal: Error creating event %s: %s", event_code, str(e))

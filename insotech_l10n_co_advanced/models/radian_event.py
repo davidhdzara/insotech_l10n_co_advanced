@@ -211,7 +211,7 @@ class RadianEvent(models.Model):
                 move.name, recibo_date, deadline, today,
             )
 
-            self.create({
+            tacit_event = self.create({
                 'move_id': move.id,
                 'company_id': company.id,
                 'event_code': '035',
@@ -220,30 +220,10 @@ class RadianEvent(models.Model):
                 'notes': (
                     f"Aceptación tácita generada automáticamente. "
                     f"Recibo del bien (032) del {recibo_date}. "
-                    f"Plazo venció el {deadline}. "
-                    f"Modo: dry run (XML no enviado a DIAN)."
+                    f"Plazo venció el {deadline}."
                 ),
             })
-
-            # Post notification on the invoice chatter
-            try:
-                move.message_post(
-                    body=(
-                        f"⏱️ <b>Aceptación Tácita (035)</b> generada "
-                        f"automáticamente.<br/>"
-                        f"Recibo del bien (032): {recibo_date}<br/>"
-                        f"Plazo de 3 días hábiles venció: {deadline}<br/>"
-                        f"Sin respuesta del receptor → aceptación tácita."
-                    ),
-                    message_type='comment',
-                    subtype_xmlid='mail.mt_note',
-                )
-            except Exception as e:
-                _logger.debug(
-                    "Insotech: Could not post tacit acceptance "
-                    "notification for move %s: %s",
-                    move.id, e,
-                )
+            tacit_event.action_send_to_dian()
 
             created_count += 1
 
@@ -251,3 +231,130 @@ class RadianEvent(models.Model):
             "Insotech RADIAN: Tacit acceptance CRON complete. "
             "Created %d event(s) 035.", created_count,
         )
+
+    def action_send_to_dian(self):
+        """Builds, signs, and sends the RADIAN structured XML to DIAN.
+        
+        Requires insotech_dian_wizard cryptographic tools.
+        """
+        try:
+            from odoo.addons.insotech_dian_wizard.services import xml_signer, soap_client
+            from ..services import radian_xml_builder
+        except ImportError as e:
+            _logger.error("RADIAN Send Error: requires insotech_dian_wizard installed. %s", e)
+            return False
+
+        for event in self:
+            if event.state in ('accepted', 'sent'):
+                continue
+
+            company = event.company_id
+            if not company.insotech_dian_cert_file or not company.insotech_dian_cert_password:
+                event.write({'state': 'error', 'notes': 'Certificado .p12 no configurado en la compañía.'})
+                continue
+
+            try:
+                # 1. Build Raw UBL 2.1 ApplicationResponse
+                xml_string = radian_xml_builder.generate_application_response(event)
+                xml_bytes = xml_string.encode('utf-8')
+
+                # 2. Extract PIN and .p12 data
+                p12_bytes = company.insotech_dian_cert_file
+                p12_pass = company.insotech_dian_cert_password
+
+                # 3. Apply XAdES-EPES Signature
+                signed_xml_bytes = xml_signer.sign_xml(xml_bytes, p12_bytes, p12_pass)
+                
+                # Update dry-run tracker
+                event.write({
+                    'xml_content': signed_xml_bytes.decode('utf-8'),
+                    'state': 'done',
+                })
+
+                # Determine production vs Hab endpoint correctly 
+                # (usually hab matches the l10n_co_edi test flag, but we assume default from setup wizard or production)
+                endpoint = 'https://vpfe.dian.gov.co/WcfDianCustomerServices.svc'
+                if company.l10n_co_edi_test_mode:
+                    endpoint = 'https://vpfe-hab.dian.gov.co/WcfDianCustomerServices.svc'
+
+                # 4. We must use SendEventUpdateStatus. soap_client.py doesn't have a direct wrapper for it.
+                # However, _send_soap and _build_soap_envelope are available. 
+                # Let's bypass SendBillSync wrapper and talk directly to the SOAP engine:
+                SOAP_ACTION_EVENT = 'http://wcf.dian.colombia/IWcfDianCustomerServices/SendEventUpdateStatus'
+                
+                # Compress into ZIP for base64 as required by DIAN's SendEventUpdateStatus?
+                # Actually, SendEventUpdateStatus accepts the same payload structure as SendBillSync (contentFile).
+                import zipfile
+                import io
+                import base64
+                
+                zip_buffer = io.BytesIO()
+                # DIAN requires standard filename + .xml inside .zip.
+                fe_num = str(event.id).zfill(6)
+                xml_filename = f"z{company.vat}000{fe_num}.xml"
+                zip_filename = f"z{company.vat}000{fe_num}.zip"
+                
+                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+                    zf.writestr(xml_filename, signed_xml_bytes)
+                
+                base64_zip = base64.b64encode(zip_buffer.getvalue()).decode('ascii')
+                
+                # Payload:
+                payload = f'''
+                    <SendEventUpdateStatus xmlns="http://wcf.dian.colombia">
+                        <contentFile>{base64_zip}</contentFile>
+                    </SendEventUpdateStatus>
+                '''
+                
+                # Invoke SOAP client manually using WS-Security
+                envelope = soap_client._build_soap_envelope(
+                    body_xml=payload,
+                    action=SOAP_ACTION_EVENT,
+                    to_url=endpoint,
+                    certificate_bytes=p12_bytes,
+                    certificate_password=p12_pass,
+                )
+                
+                response_text = soap_client._send_soap(envelope, endpoint, SOAP_ACTION_EVENT)
+                result = soap_client._parse_dian_response(response_text)
+                
+                # Process the synchronous response
+                is_valid = str(result.get('IsValid', 'false')).lower() == 'true'
+                status_code = result.get('StatusCode', '')
+                error_messages = result.get('ErrorMessages', '')
+                status_msg = result.get('StatusMessage', '')
+                
+                if is_valid:
+                    event.write({
+                        'state': 'accepted',
+                        'notes': f"DIAN Validado. StatusCode: {status_code}. {status_msg}",
+                    })
+                    # Add XML Attachment to the invoice (move)
+                    self.env['ir.attachment'].create({
+                        'name': f"ApplicationResponse_RAD_{event.event_code}_{move.name}.xml".replace('/', '_'),
+                        'datas': base64.b64encode(signed_xml_bytes),
+                        'res_model': 'account.move',
+                        'res_id': move.id,
+                        'mimetype': 'application/xml',
+                    })
+                    if result.get('ApplicationResponse'): # Attached official app response from DIAN
+                        self.env['ir.attachment'].create({
+                            'name': f"Acuse_DIAN_RAD_{event.event_code}_{move.name}.xml".replace('/', '_'),
+                            'datas': result['ApplicationResponse'].encode(),
+                            'res_model': 'account.move',
+                            'res_id': move.id,
+                            'mimetype': 'application/xml',
+                        })
+                else:
+                    event.write({
+                        'state': 'error',
+                        'notes': f"Rechazado DIAN. Code {status_code}: {error_messages}",
+                    })
+                
+            except Exception as e:
+                _logger.exception("Failed to send RADIAN event to DIAN: %s", event.name)
+                event.write({
+                    'state': 'error',
+                    'notes': f"Error interno en transmisión: {str(e)}",
+                })
+        return True
