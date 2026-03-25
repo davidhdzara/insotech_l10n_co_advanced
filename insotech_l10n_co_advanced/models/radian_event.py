@@ -89,6 +89,16 @@ class RadianEvent(models.Model):
         help="Notas adicionales o motivo del evento "
              "(ej: código de reclamo para evento 031).",
     )
+    mandate_ip = fields.Char(
+        string="IP Aprobación Mandato",
+        readonly=True,
+        help="Dirección IP pública del comprador que aceptó el mandato RADIAN en el portal.",
+    )
+    mandate_timestamp = fields.Datetime(
+        string="Fecha Aprobación Mandato",
+        readonly=True,
+        help="Fecha y hora exacta en la que el usuario marcó el checkbox de autorización legal.",
+    )
     source = fields.Selection(
         selection=[
             ('manual', 'Manual'),

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="portal_radian_invoice_inherit" inherit_id="account.portal_invoice_page" name="Portal RADIAN Invoice">
+        
+        <!-- Inject Traceability before iframe -->
+        <xpath expr="//div[@id='invoice_content']/div[hasclass('o_portal_html_view')]" position="before">
+            <t t-call="insotech_l10n_co_advanced.s_radian_traceability"/>
+        </xpath>
+
+        <!-- Inject Actions in the Sidebar -->
+        <xpath expr="//t[@t-set='entries']/div[hasclass('d-flex')]" position="inside">
+            <t t-call="insotech_l10n_co_advanced.s_radian_actions"/>
+        </xpath>
+        
+    </template>
+</odoo>
