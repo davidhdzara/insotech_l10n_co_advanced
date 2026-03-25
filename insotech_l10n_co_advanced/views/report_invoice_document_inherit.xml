@@ -3,14 +3,69 @@
     <!--
         RADIAN PDF Complement — Título Valor (Resolución DIAN 000165)
         Filosofía: Solo COMPLEMENTAR lo que Odoo + l10n_co_dian NO proveen.
-        NO se oculta ni reemplaza ningún nodo nativo (excepto texto de labels).
     -->
     <template id="report_invoice_document_inherit_radian" inherit_id="account.report_invoice_document">
 
         <!-- ============================================================
-             A. COMPLEMENTO AL BLOQUE DE CLIENTE
-             El nativo muestra nombre, dirección y NIT.
-             Nosotros añadimos: label legal + teléfono + email.
+             A. INFORMACIÓN DEL EMISOR (junto al logo/nombre de empresa)
+             Campos tributarios obligatorios: NIT, Tipo Org, Régimen,
+             Responsabilidad, Tipo Operación.
+             ============================================================ -->
+        <xpath expr="//div[@name='no_shipping']" position="before">
+            <t t-set="company_partner" t-value="o.company_id.partner_id"/>
+            <div class="mb-2" style="font-size: 0.85em; line-height: 1.5;">
+                <!-- NIT con DV -->
+                <div>
+                    <strong>NIT:</strong>
+                    <span t-esc="o.company_id.vat or ''"/>
+                    <t t-if="company_partner and hasattr(company_partner, 'l10n_co_verification_digit')">
+                        -<span t-esc="company_partner.l10n_co_verification_digit or ''"/>
+                    </t>
+                </div>
+                <!-- Tipo de organización (NIT=Jurídica, CC=Natural) -->
+                <t t-set="id_type" t-value="company_partner.l10n_latam_identification_type_id if company_partner else False"/>
+                <t t-set="doc_code" t-value="id_type.l10n_co_document_code if id_type and hasattr(id_type, 'l10n_co_document_code') else ''"/>
+                <div>
+                    <strong>Tipo de organización:</strong>
+                    <t t-if="doc_code == '31'">Persona Jurídica</t>
+                    <t t-elif="doc_code == '13'">Persona Natural</t>
+                    <t t-else="">
+                        <t t-if="doc_code">Código <t t-esc="doc_code"/></t>
+                        <t t-else="">No definido</t>
+                    </t>
+                </div>
+                <!-- Tipo de régimen (derivado de obligaciones fiscales) -->
+                <t t-set="obligations" t-value="company_partner.l10n_co_edi_obligation_type_ids if company_partner and hasattr(company_partner, 'l10n_co_edi_obligation_type_ids') else False"/>
+                <t t-set="obligation_names" t-value="obligations.mapped('name') if obligations else []"/>
+                <div>
+                    <strong>Tipo de régimen:</strong>
+                    <t t-if="'O-47' in obligation_names">Régimen Simple de Tributación - SIMPLE</t>
+                    <t t-elif="'O-48' in obligation_names">Impuesto sobre las ventas – IVA</t>
+                    <t t-elif="'O-15' in obligation_names">Gran contribuyente</t>
+                    <t t-else="">Impuesto sobre las ventas – IVA</t>
+                </div>
+                <!-- Tipo de responsabilidad -->
+                <div>
+                    <strong>Tipo de responsabilidad:</strong>
+                    <t t-if="obligations">
+                        <span t-esc="', '.join(obligation_names)"/>
+                    </t>
+                    <t t-else="">No definida</t>
+                </div>
+                <!-- Tipo de operación -->
+                <div>
+                    <strong>Tipo de operación:</strong>
+                    <t t-if="o.l10n_co_edi_operation_type">
+                        <span t-field="o.l10n_co_edi_operation_type"/>
+                    </t>
+                    <t t-else="">Estándar</t>
+                </div>
+            </div>
+        </xpath>
+
+        <!-- ============================================================
+             B. COMPLEMENTO AL BLOQUE DE CLIENTE
+             Añadimos: label legal + teléfono + email.
              ============================================================ -->
         <xpath expr="//div[@name='no_shipping']" position="after">
             <div class="mt-2" style="font-size: 0.9em;">
@@ -25,9 +80,8 @@
         </xpath>
 
         <!-- ============================================================
-             B. COMPLEMENTO AL BLOQUE DE INFORMACIÓN
-             El nativo ya tiene: fecha, vencimiento, origen, ref.
-             Nosotros añadimos: Forma de pago y Método de pago.
+             C. COMPLEMENTO AL BLOQUE DE INFORMACIÓN
+             Añadimos: Forma de pago y Método de pago.
              ============================================================ -->
         <xpath expr="//div[@id='informations']" position="inside">
             <div class="col-auto" t-if="o.l10n_co_edi_payment_option_id" name="payment_method">
@@ -44,7 +98,7 @@
         </xpath>
 
         <!-- ============================================================
-             C. IMPORTE TOTAL CON LETRA (después de los totales)
+             D. IMPORTE TOTAL CON LETRA (después de los totales)
              ============================================================ -->
         <xpath expr="//div[@id='total']" position="after">
             <div class="row mt-2 mb-2">
@@ -56,27 +110,24 @@
         </xpath>
 
         <!-- ============================================================
-             D. REFERENCIA DE PAGO + CUENTA BANCARIA
+             E. REFERENCIA DE PAGO + CUENTA BANCARIA
+             Fallback: partner_bank_id → journal bank → company bank
              ============================================================ -->
         <xpath expr="//p[@name='payment_communication']" position="replace">
             <p name="payment_communication">
                 <strong>Referencia de pago:</strong> <span t-field="o.payment_reference"/>
-                <t t-if="o.partner_bank_id">
+                <!-- Cuenta bancaria con triple fallback -->
+                <t t-set="bank_account" t-value="o.partner_bank_id or o.journal_id.bank_account_id or (o.company_id.partner_id.bank_ids[:1] if o.company_id.partner_id.bank_ids else False)"/>
+                <t t-if="bank_account">
                     <br/>
                     <span class="text-muted" style="font-size: 0.9em;">
-                        en esta cuenta: <span t-field="o.partner_bank_id" class="fw-bold"/>
-                    </span>
-                </t>
-                <t t-elif="o.journal_id.bank_account_id">
-                    <br/>
-                    <span class="text-muted" style="font-size: 0.9em;">
-                        en esta cuenta: <span t-esc="o.journal_id.bank_account_id.display_name" class="fw-bold"/>
+                        en esta cuenta: <span t-esc="bank_account.display_name" class="fw-bold"/>
                     </span>
                 </t>
             </p>
         </xpath>
 
-        <!-- Firma ahora vive en s_radian_traceability.xml junto al CUFE y NIT -->
+        <!-- Firma vive en s_radian_traceability.xml junto al CUFE y NIT -->
 
     </template>
 </odoo>
