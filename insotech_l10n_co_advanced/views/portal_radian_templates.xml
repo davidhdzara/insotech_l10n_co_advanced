@@ -3,11 +3,6 @@
     
     <!-- 1. Inject UI Actions in Portal Page (Top/Side and Bottom) -->
     <template id="portal_radian_invoice_inherit" inherit_id="account.portal_invoice_page" name="Portal RADIAN Invoice">
-        
-        <!-- Inject Actions in the Sidebar -->
-        <xpath expr="//t[@t-set='entries']/div[hasclass('d-flex')]" position="inside">
-            <t t-call="insotech_l10n_co_advanced.s_radian_actions"/>
-        </xpath>
 
         <!-- Inject Actions right above the communication chatter -->
         <xpath expr="//div[@id='invoice_communication']" position="before">
