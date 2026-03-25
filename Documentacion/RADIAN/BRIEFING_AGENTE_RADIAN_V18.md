@@ -208,7 +208,156 @@ if RadianEvent is None:
 
 ---
 
-## 8. Preguntas que el agente DEBE hacer al usuario
+## 8. Comunicación SOAP con DIAN — Envío de Eventos RADIAN
+
+Los eventos RADIAN se envían a la DIAN como documentos XML firmados via **SOAP web services**. Esta es la capa que transforma un registro en BD en una comunicación válida con la DIAN.
+
+### Endpoints DIAN
+
+| Ambiente | URL |
+|----------|-----|
+| Habilitación (pruebas) | `https://vpfe-hab.dian.gov.co/WcfDianCustomerServices.svc` |
+| Producción | `https://vpfe.dian.gov.co/WcfDianCustomerServices.svc` |
+
+### Métodos SOAP relevantes
+
+| Método | Uso | Tipo |
+|--------|-----|------|
+| `SendBillSync` | Enviar 1 factura/evento y obtener respuesta inmediata | Síncrono |
+| `SendTestSetAsync` | Enviar batch de hasta 50 documentos (habilitación) | Asíncrono |
+| `GetStatusZip` | Consultar estado de un batch asíncrono | Consulta |
+| `SendEventUpdateStatus` | **Enviar eventos RADIAN (030-035)** | Síncrono |
+| `GetStatus` | Consultar estado de un documento específico | Consulta |
+
+> ⚠️ **IMPORTANTE:** `SendTestSetAsync` **NO reporta errores de validación XML**. Si un documento tiene campos incorrectos, se queda "procesando" indefinidamente. SIEMPRE pre-validar con `SendBillSync` primero.
+
+### Flujo de envío de un evento RADIAN
+```
+1. Obtener CUFE de la factura original
+2. Computar CUDE del evento (SHA-384)
+3. Construir XML ApplicationResponse UBL 2.1
+4. Firmar con XAdES-EPES (certificado .p12)
+5. Comprimir en ZIP
+6. Enviar via SendEventUpdateStatus
+7. Parsear respuesta SOAP
+```
+
+---
+
+## 9. Estructura XML ApplicationResponse (Eventos RADIAN)
+
+Todos los eventos (030-035) comparten la misma estructura base:
+
+```xml
+<ApplicationResponse xmlns="urn:oasis:names:specification:ubl:schema:xsd:ApplicationResponse-2">
+  <ext:UBLExtensions>
+    <!-- DianExtensions: InvoiceSource, SoftwareProvider, SoftwareSecurityCode, QRCode -->
+    <!-- Firma XAdES-EPES (segunda UBLExtension) -->
+  </ext:UBLExtensions>
+  <cbc:UBLVersionID>UBL 2.1</cbc:UBLVersionID>         <!-- ⚠️ "UBL 2.1", NO "2.1" -->
+  <cbc:CustomizationID>1</cbc:CustomizationID>
+  <cbc:ProfileID>DIAN 2.1: ApplicationResponse de la Factura Electrónica de Venta</cbc:ProfileID>
+  <cbc:ProfileExecutionID>2</cbc:ProfileExecutionID>     <!-- 1=Producción, 2=Pruebas -->
+  <cbc:ID>ACR0021</cbc:ID>                               <!-- Consecutivo del evento -->
+  <cbc:UUID schemeID="2" schemeName="CUDE-SHA384">...</cbc:UUID>
+  <cbc:IssueDate>2020-12-12</cbc:IssueDate>
+  <cbc:IssueTime>18:30:37-05:00</cbc:IssueTime>
+  <cbc:Note>...cadena CUDE...</cbc:Note>
+  <cac:SenderParty>...</cac:SenderParty>                  <!-- Quien emite el evento -->
+  <cac:ReceiverParty>...</cac:ReceiverParty>              <!-- Emisor original de la FE -->
+  <cac:DocumentResponse>
+    <cac:Response>
+      <cbc:ResponseCode>030</cbc:ResponseCode>            <!-- Código del evento -->
+      <cbc:Description>Acuse de recibo...</cbc:Description>
+    </cac:Response>
+    <cac:DocumentReference>
+      <cbc:ID>SETG980000358</cbc:ID>                      <!-- Número factura referenciada -->
+      <cbc:UUID schemeName="CUFE-SHA384">...</cbc:UUID>   <!-- CUFE de la factura -->
+      <cbc:DocumentTypeCode>01</cbc:DocumentTypeCode>     <!-- 01=Factura -->
+    </cac:DocumentReference>
+    <cac:IssuerParty>  <!-- Solo en evento 030: persona que recibe -->
+      <cac:Person>
+        <cbc:ID schemeID="4" schemeName="13">2589846132</cbc:ID>
+        <cbc:FirstName>...</cbc:FirstName>
+        <cbc:FamilyName>...</cbc:FamilyName>
+        <cbc:JobTitle>Revisor Fiscal</cbc:JobTitle>
+      </cac:Person>
+    </cac:IssuerParty>
+  </cac:DocumentResponse>
+</ApplicationResponse>
+```
+
+### Diferencias entre eventos
+| Evento | ResponseCode | IssuerParty (Person) | Atributos extras |
+|--------|-------------|---------------------|-----------------|
+| 030 Acuse Recibo | `030` | ✅ Sí (receptor) | — |
+| 031 Rechazo | `031` | ❌ No | — |
+| 032 Recibo B&S | `032` | ❌ No | — |
+| 033 Aceptación | `033` | ❌ No | — |
+| 034 Reclamo | `034` | ❌ No | `listID="2"` + código reclamo |
+| 035 Tácita | `035` | ❌ No | — |
+
+### Códigos de reclamo (evento 034)
+- `01`: Documento con inconsistencias
+- `02`: Mercancía no entregada totalmente
+- `03`: Mercancía no entregada parcialmente
+- `04`: Servicio no prestado
+
+### CUDE (Código Único de Documento Electrónico)
+Los eventos usan **CUDE** (no CUFE). Se calcula con **SHA-384**:
+```
+CUDE = SHA384(NumDoc + FechaDoc + HoraDoc + ResponseCode + ... + clave_técnica)
+```
+- `schemeName="CUDE-SHA384"`, `schemeID="2"`
+- La factura original usa `schemeName="CUFE-SHA384"`
+
+### Firma Digital
+- **XAdES-EPES** (misma estructura que facturas)
+- **SignaturePolicyId** (⚠️ NO `SignaturePolicy` — causa crash XSD)
+- Certificado **.p12** del emisor
+- URL política de firma: `https://facturaelectronica.dian.gov.co/politicadefirmav2.pdf`
+
+---
+
+## 10. Las 15 Reglas de Oro (aprendidas en producción)
+
+Estas reglas se descubrieron durante la habilitación DIAN. Cada una causó rechazos reales:
+
+| # | Regla | Error si se viola |
+|---|-------|-----------------|
+| 1 | **`UBLVersionID = 'UBL 2.1'`** (con prefijo) | Regla ZB01: fallo esquema XSD |
+| 2 | **CustomizationID varía por tipo:** 10 (FV), 20 (NC ref), 22 (NC sin ref), 30 (ND ref) | Regla CBF03a |
+| 3 | **ProfileID incluye tipo de documento** | Regla FAD03 |
+| 4 | **AuthorizationProvider con NIT DIAN `800197268`** | Regla FAB31 |
+| 5 | **QR Code obligatorio** en DianExtensions | Regla FAB36 |
+| 6 | **AllowanceCharge obligatorio** en cada línea (incluso 0) | Regla FBE01 |
+| 7 | **Delivery > DeliveryAddress obligatorio** | Regla FAJ28 |
+| 8 | **TaxScheme siempre = `01`/IVA** (no-responsable = `TaxLevelCode R-99-PN`) | Regla FAK41 |
+| 9 | **Consecutivos irrepetibles** (incluso en pruebas) | Regla 90 |
+| 10 | **PaymentMeans > ID es numérico**, incluir PaymentID | Regla FAN02 |
+| 11 | **SignaturePolicyId** (no SignaturePolicy) | Crash XSD |
+| 12 | **Datos emisor = RUT exacto** (dirección, códigos DANE) | StatusCode 99 |
+| 13 | **SendTestSetAsync NO valida XML** — siempre pre-test con SendBillSync | Track ID ≠ éxito |
+| 14 | **Fecha generación = fecha firma = fecha transmisión** | Regla FAD09e |
+| 15 | **`elem.text` puede ser None** en respuestas SOAP | NoneType crash |
+
+### Dependencia circular CUFE ↔ XML
+```
+CUFE = SHA384(datos del documento)  ← Solo depende de DATOS, no del XML
+QR = URL + CUFE
+DianExtensions = { ..., QRCode }
+XML = { DianExtensions, datos, CUFE }
+
+Orden correcto:
+1. Calcular CUFE con datos puros
+2. Crear DianExtensions con QR (que incluye CUFE)
+3. Crear el resto del XML
+4. Firmar
+```
+
+---
+
+## 11. Preguntas que el agente DEBE hacer al usuario
 
 Antes de implementar, obtener respuestas a:
 
@@ -219,10 +368,13 @@ Antes de implementar, obtener respuestas a:
 5. **¿Ya tienen certificado .p12 configurado?** — necesario para firmar los ApplicationResponse
 6. **¿Qué versión exacta de Odoo 18?** — 18.0 vs 18.x (patches)
 7. **¿Hay multi-compañía?** — afecta la configuración de retries/intervalos
+8. **¿Qué endpoint DIAN usan?** — habilitación vs producción
+9. **¿Tienen software ID y PIN configurados?** — necesarios para DianExtensions
+10. **¿Cuál es el prefijo de facturación?** — para generar consecutivos de eventos
 
 ---
 
-## 9. Errores comunes a evitar
+## 12. Errores comunes a evitar
 
 | Error | Consecuencia | Prevención |
 |-------|-------------|------------|
@@ -233,10 +385,13 @@ Antes de implementar, obtener respuestas a:
 | `numbercall` en CRON V19 | Warning y CRON no funciona | Omitir en V19, incluir en V18 |
 | `ref="modulo.model_xxx"` en CRON | XML ID no encontrado | Usar `search="[...]"` si falla |
 | No definir `ir.model.access.csv` | Modelo inaccesible | SIEMPRE crear permisos |
+| `UBLVersionID = '2.1'` | Rechazo XSD DIAN | Usar `'UBL 2.1'` |
+| `SignaturePolicy` en vez de `SignaturePolicyId` | Crash XSD | Verificar contra esquema XAdES |
+| Omitir AuthorizationProvider | Regla FAB31 | NIT `800197268` obligatorio |
 
 ---
 
-## 10. Archivos de referencia en V19
+## 13. Archivos de referencia en V19
 
 El agente puede solicitar al usuario que comparta estos archivos como contexto:
 
@@ -249,9 +404,13 @@ El agente puede solicitar al usuario que comparta estos archivos como contexto:
 | CRON tácita | `insotech_l10n_co_advanced/data/cron_radian_tacit.xml` |
 | Bloqueo NC/ND | `insotech_l10n_co_advanced/models/account_move.py` |
 | Config empresa | `insotech_dian_wizard/models/res_company.py` |
+| Generador UBL | `insotech_dian_wizard/services/ubl_generator.py` |
+| Firmador XML | `insotech_dian_wizard/services/xml_signer.py` |
+| Cliente SOAP | `insotech_dian_wizard/services/soap_client.py` |
 | Investigación RADIAN | `Documentacion/RADIAN/INVESTIGACION_RADIAN.md` |
 | Investigación Contingencia | `Documentacion/RADIAN/INVESTIGACION_CONTINGENCIA_TIPO4.md` |
+| Habilitación DIAN (15 errores) | `.agent/skills/base-de-conocimiento/aprendizajes/dian-habilitacion-facturacion-electronica.md` |
 
 ---
 
-> **Nota final:** Este documento es un mapa, no un blueprint. La implementación en V18 puede diferir significativamente dependiendo de los módulos instalados. El paso #3 (inspección) es **OBLIGATORIO** antes de escribir código.
+> **Nota final:** Este documento es un mapa, no un blueprint. La implementación en V18 puede diferir significativamente dependiendo de los módulos instalados. El paso #3 (inspección) es **OBLIGATORIO** antes de escribir código. La sección de comunicación DIAN (§8-10) contiene lecciones aprendidas en producción real — NO ignorarlas.
