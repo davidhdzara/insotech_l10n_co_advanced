@@ -92,6 +92,9 @@ def generate_application_response(event):
     response_code = event.event_code
     response_desc = descriptions.get(event.event_code, '')
     
+    # Production = 1, Test = 2
+    profile_execution_id = '2' if company.l10n_co_edi_test_mode else '1'
+    
     # Add Claim Code block if this is a Reclamo 034
     line_response_xml = ""
     if event.event_code == '034' and event.claim_code:
@@ -147,7 +150,7 @@ def generate_application_response(event):
     <cbc:UBLVersionID>UBL 2.1</cbc:UBLVersionID>
     <cbc:CustomizationID>1</cbc:CustomizationID>
     <cbc:ProfileID>{profile_id}</cbc:ProfileID>               
-    <cbc:ProfileExecutionID>2</cbc:ProfileExecutionID>
+    <cbc:ProfileExecutionID>{profile_execution_id}</cbc:ProfileExecutionID>
     <cbc:ID>{ar_id}</cbc:ID>
     <cbc:UUID schemeID="2" schemeName="CUDE-SHA384">{cude}</cbc:UUID>
     <cbc:IssueDate>{fec_ar}</cbc:IssueDate>
