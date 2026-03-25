@@ -32,7 +32,7 @@ class RadianPortalController(http.Controller):
             return request.redirect('/my')
 
         # 2. Check Mandate (Checkbox required=True in UI, double-check in backend)
-        mandate_accepted = post.get('radian_mandate') == 'on'
+        mandate_accepted = post.get('mandate_accepted') == '1'
         if not mandate_accepted:
             # Mandate not accepted, redirect back with error
             return _redirect_msg(invoice_sudo, 'error', _('Debe aceptar el mandato legal para continuar.'))
