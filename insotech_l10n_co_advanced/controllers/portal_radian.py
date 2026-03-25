@@ -17,11 +17,11 @@ class RadianPortalController(http.Controller):
     )
     def trigger_radian_event(self, invoice_id, event_code, access_token=None, **post):
         """Handle RADIAN event generation (030, 032, 033, 034) from portal."""
-        from werkzeug.urls import url_encode
+        from urllib.parse import urlencode
         
         def _redirect_msg(invoice, msg_type, message):
             url = invoice.get_portal_url()
-            qs = url_encode({msg_type: message})
+            qs = urlencode({msg_type: str(message)})
             return request.redirect(f"{url}&{qs}" if "?" in url else f"{url}?{qs}")
         
         # 1. Access Validation (Odoo core check)
