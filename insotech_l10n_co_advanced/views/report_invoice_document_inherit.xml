@@ -93,11 +93,12 @@
             <attribute name="style">display: none !important;</attribute>
         </xpath>
         <xpath expr="//div[@id='qrcode']" position="after">
-            <t t-set="show_qr" t-value="o.l10n_co_edi_qr or o.display_qr_code"/>
+            <!-- QR DIAN: Se construye dinámicamente a partir del CUFE (aprendizaje dian-habilitacion línea 143) -->
+            <t t-set="dian_qr_url" t-value="'https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey=%s' % o.l10n_co_edi_cufe_cude_ref if o.l10n_co_edi_cufe_cude_ref else ''"/>
+            <t t-set="show_dian_qr" t-value="bool(dian_qr_url)"/>
             <div class="row mt-5 pt-4 border-top avoid-page-break-inside" id="dian_footer_block">
-                <div class="col-2 text-center" t-if="show_qr">
-                    <img t-if="o.l10n_co_edi_qr" t-att-src="'/report/barcode/?barcode_type=QR&amp;value=%s&amp;width=120&amp;height=120' % o.l10n_co_edi_qr" class="shadow-sm rounded" style="width: 100%; max-width: 120px;"/>
-                    <img t-elif="o.display_qr_code" t-att-src="o._generate_qr_code(silent_errors=True)" class="shadow-sm rounded" style="width: 100%; max-width: 120px;"/>
+                <div class="col-2 text-center" t-if="show_dian_qr">
+                    <img t-att-src="'/report/barcode/?barcode_type=QR&amp;value=%s&amp;width=120&amp;height=120' % dian_qr_url" class="shadow-sm rounded" style="width: 100%; max-width: 120px;"/>
                 </div>
                 <div class="col-10" style="font-size: 0.85em; line-height: 1.5;">
                     <p class="mb-2 text-uppercase fw-bold" style="color: #003498;">

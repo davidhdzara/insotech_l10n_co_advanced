@@ -46,53 +46,34 @@ Visibilidad total del consumo de tu resolución:
 - Alertas automáticas cuando se acerca el límite
 - Funciona con cualquier diario y prefijo (FE, NC, ND, DS...)
 
+### 🧠 Diagnóstico Inteligente de Errores (¡Adiós XML crudos!)
+Siigo y Alegra te dicen exactamente qué salió mal. Odoo nativo lanza códigos XML incomprensibles. InSoTech incorpora un **Traductor Inteligente de Errores DIAN**:
+- Si el NIT del cliente no existe en el RUT, no verás un "Error 401"; verás un banner rojo que dice: *"El NIT del cliente no existe o fue cancelado."*
+- Validación pre-envío de responsabilidades fiscales. Ahorra cientos de horas de soporte financiero y frustración contable.
+
+### 📄 Rediseño B2B: Transformación de PDF a "Título Valor" Legal
+Odoo nativo imprime facturas contables europeas, no exigibles legalmente en Colombia. Nosotros re-escribimos el corazón de `report_invoice_document` para que tu empresa expida un **Título Valor 100% Legal y Endosable (Artículos 621 y 774 del Código de Comercio)**:
+- **Inyección Automática de Monto en Letras** ("SON: UN MILLON DE PESOS M/CTE"). Obligatorio para evitar nulidades judiciales.
+- El PDF expone elegantemente el código QR DIAN, el CUFE, e inyecta la referencia de la Firma Digital Autónoma y la resolución.
+- Expone claramente el domicilio de notificación deudor y las referencias bancarias de pago. Todo bajo el marco estético Bootstrap del cliente corporativo premium.
+
 ### 🔄 Reintentos Inteligentes
 Si la DIAN rechaza tu factura:
-- Botón "Reintentar Envío DIAN" — sin crear factura nueva
-- Restauración automática del nombre temporal
-- El consecutivo original se preserva para el reintento
+- Botón "Reintentar Envío DIAN" — sin crear una factura nueva de cero.
+- Restauración automática del nombre temporal (`PRE-INV`) en tiempo real.
+- El consecutivo legal original permanece protegido y sellado bajo nuestro test 5-way CI/CD. Cero saltos.
 
-### 📡 Eventos RADIAN — Control Total del Ciclo de Vida
-La factura electrónica no termina cuando la DIAN la acepta. InSoTech gestiona los eventos RADIAN que convierten tu factura en un documento con pleno valor jurídico:
-
-| Evento | Código | Descripción |
-|:-:|:-:|---|
-| Acuse de Recibo | 030 | Confirma que el receptor recibió la factura |
-| Recibo de Bienes | 032 | Certifica que los bienes o servicios fueron entregados |
-| Aceptación Expresa | 033 | El receptor acepta formalmente la factura |
-| Aceptación Tácita | 034 | Se genera automáticamente cuando el receptor no responde en 3 días |
-| Reclamo | 031 | El receptor rechaza la factura (con motivo DIAN) |
-
-**¿Por qué importa?**
-- Sin estos eventos, tu factura **no tiene "vocación de circulación"** — no es negociable como título valor
-- Sin Aceptación (033/034), la factura **no es soporte válido** para costos, deducciones ni impuestos descontables
-- Los competidores (Siigo, Alegra) ya lo ofrecen — RADIAN es el nuevo estándar de competencia
-
-**Modo RADIAN configurable desde Ajustes:**
-
-La "vocación de circulación" determina si una factura puede ser negociada como título valor (factoring, endoso, cesión). No todas las facturas lo requieren, por eso InSoTech te da control total:
-
-| Modo | Comportamiento | Ideal para |
-|---|---|---|
-| **Solo facturas marcadas** *(predeterminado)* | Tú decides factura por factura cuáles tienen vocación de circulación. Solo esas generan eventos RADIAN. | Empresas que negocian algunas facturas como título valor, pero no todas |
-| **Todas las facturas a crédito** | Genera eventos RADIAN automáticamente para toda factura con plazo de pago (30, 60, 90 días). | Empresas que operan con factoring o necesitan soporte fiscal completo |
-| **Desactivado** | No se generan eventos RADIAN. La facturación funciona normalmente. | Empresas que solo emiten facturas de contado o no requieren título valor |
-
-> 💡 **¿Qué es la "vocación de circulación"?** Es el concepto jurídico (Resolución 000165/2023) que indica que una factura electrónica será usada como instrumento de crédito negociable. Solo las facturas con esta vocación necesitan los eventos RADIAN (030-034) para tener pleno valor jurídico ante terceros.
+### 🌐 Portal RADIAN 360 Interactívo (Sin Login Friccional)
+La factura electrónica no termina cuando la DIAN la acepta, apenas comienza. Hemos emancipado Odoo del pesado y limitante portal nativo ("Tiene que iniciar sesión para...").
+- **Portal URL Público Blindado:** Tu cliente entra directamente desde un link en el correo, ve su Título Valor e interactúa.
+- **Firma a Ruego Automática:** Un checkbox de Mandato Legal obliga al deudor a aceptar sus términos corporativos. InSoTech captura su IP, emite el Hash Criptográfico, y registra el mandato al instante.
+- **Cero Comisiones por Evento:** Aceptación Expresa (033), Acuse de Recibo (030) y Reclamos (031) se envían hacia Bogotá en formato UBL 2.1 vía **SOAP Directo (Bypassing IAP)**. Cero caídas, cero tokens de compra en Odoo.
+- **Bloqueo Inteligente Anti-Factoring:** Si tu factura es endosada (Eventos 037/038), InSoTech elimina automáticamente el botón nativo de de "Pre-Pago", previniendo catástrofes de recaudo doble.
 
 ### 🔐 Monitoreo de Certificado Digital
-Protección proactiva contra el bloqueo operativo más costoso: un certificado .p12 vencido.
-
-| Nivel | Días restantes | Acción |
-|:-:|:-:|---|
-| 🟢 Aviso | ≤ 90 días | Notificación en el chatter de la empresa |
-| 🟡 Advertencia | ≤ 30 días | "Programe la renovación" |
-| 🔴 Crítico | ≤ 7 días | "Renueve URGENTEMENTE" |
-| 🔴 Bloqueado | 0 días | "Facturación electrónica BLOQUEADA" |
-
-- Verificación automática diaria (CRON)
-- Fecha de vencimiento extraída directamente del .p12 — sin configuración manual
-- Visible en **Ajustes → InSoTech** con contador de días en tiempo real
+Protección proactiva contra el bloqueo operativo más costoso (Un certificado .p12 vencido).
+- Notifica 90 días antes, alerta 30 días antes, y **BLOQUEA por seguridad** el día 0.
+- Cron automático evalúa diariamente tu bóveda criptográfica.
 
 ---
 
