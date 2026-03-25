@@ -319,6 +319,7 @@ class RadianEvent(models.Model):
                 status_code = result.get('StatusCode', '')
                 error_messages = result.get('ErrorMessages', '')
                 status_msg = result.get('StatusMessage', '')
+                raw_resp = result.get('RawResponse', '')
                 
                 if is_valid:
                     event.write({
@@ -342,9 +343,13 @@ class RadianEvent(models.Model):
                             'mimetype': 'application/xml',
                         })
                 else:
+                    err_str = f"Rechazado DIAN. Code {status_code}: {error_messages} | Msg: {status_msg}"
+                    if not error_messages:
+                        err_str += f" | RAW: {raw_resp}"
+                    
                     event.write({
                         'state': 'error',
-                        'notes': f"Rechazado DIAN. Code {status_code}: {error_messages}",
+                        'notes': err_str,
                     })
                 
             except Exception as e:
