@@ -16,7 +16,6 @@ and recovery is handled by a separate CRON.
 
 import json
 import logging
-import time
 
 from datetime import timedelta
 
@@ -70,15 +69,14 @@ class L10nCoDianDocument(models.Model):
         Protocol (Resolución 000165/2023):
         1. Odoo native already made attempt #1 (resulted in
            state='invoice_sending_failed')
-        2. This CRON does up to 3 more attempts (total 4)
-        3. Between each attempt, waits the configured interval
-        4. If all 4 attempts fail → activates contingency mode
+        2. This CRON does 1 retry per execution (runs every 5 min)
+        3. Total attempts = max_retries (default 4)
+        4. If all attempts fail → activates contingency mode
 
-        The CRON runs every 5 minutes but the retries happen
-        within a single CRON execution with sleep() between them.
-        This keeps the user unblocked while being DIAN-compliant.
+        One retry per CRON run avoids blocking the worker with
+        sleep(). The 5-min CRON interval serves as the natural
+        cadence between attempts.
         """
-        # Find failed documents that haven't entered contingency
         failed_docs = self.search([
             ('state', '=', 'invoice_sending_failed'),
             ('insotech_contingency_mode', '=', False),
@@ -99,13 +97,11 @@ class L10nCoDianDocument(models.Model):
 
             company = move.company_id
             max_retries = company.insotech_contingency_retries or 4
-            interval = company.insotech_contingency_interval or 20
 
             # Odoo native already did attempt #1, so remaining =
             # max_retries - 1 (native) - retry_count (our CRONs)
             remaining = max_retries - 1 - doc.insotech_retry_count
             if remaining <= 0:
-                # Already exhausted retries → activate contingency
                 self._activate_contingency(doc, move)
                 continue
 
@@ -113,96 +109,91 @@ class L10nCoDianDocument(models.Model):
                 doc.insotech_contingency_evidence or '[]',
             )
 
-            # Do up to 3 retries per CRON run (with sleep between)
-            attempts_this_run = min(remaining, 3)
+            # ONE retry per CRON run (no sleep, no blocking)
+            doc.insotech_retry_count += 1
+            attempt_total = doc.insotech_retry_count + 1  # +1 native
+
+            _logger.info(
+                "Insotech Contingency: Retry %d/%d for %s "
+                "(doc id=%d)",
+                attempt_total, max_retries,
+                move.name, doc.id,
+            )
+
+            xml_content = self._get_xml_for_retry(doc)
+            if not xml_content:
+                evidence.append({
+                    'attempt': attempt_total,
+                    'timestamp': fields.Datetime.now().isoformat(),
+                    'error': 'Could not retrieve original XML '
+                             'from attachment',
+                })
+                doc.insotech_contingency_evidence = json.dumps(
+                    evidence,
+                )
+                continue
+
             success = False
+            try:
+                new_doc = self._safe_send_to_dian(xml_content, move)
 
-            for attempt_num in range(attempts_this_run):
-                doc.insotech_retry_count += 1
-                attempt_total = doc.insotech_retry_count + 1  # +1 native
-
-                _logger.info(
-                    "Insotech Contingency: Retry %d/%d for %s "
-                    "(doc id=%d)",
-                    attempt_total, max_retries,
-                    move.name, doc.id,
+                if new_doc and new_doc.state == 'invoice_accepted':
+                    _logger.info(
+                        "Insotech Contingency: Retry SUCCESS "
+                        "for %s on attempt %d/%d",
+                        move.name, attempt_total, max_retries,
+                    )
+                    evidence.append({
+                        'attempt': attempt_total,
+                        'timestamp': fields.Datetime.now().isoformat(),
+                        'result': 'accepted',
+                        'new_doc_id': new_doc.id,
+                    })
+                    success = True
+                    try:
+                        move.message_post(
+                            body=(
+                                f"✅ <b>Envío DIAN exitoso</b> en "
+                                f"reintento {attempt_total}/{max_retries}"
+                                f".<br/>Documento original (fallido) "
+                                f"id={doc.id} superado."
+                            ),
+                            message_type='comment',
+                            subtype_xmlid='mail.mt_note',
+                        )
+                    except Exception:
+                        pass
+                elif new_doc:
+                    evidence.append({
+                        'attempt': attempt_total,
+                        'timestamp': fields.Datetime.now().isoformat(),
+                        'result': new_doc.state,
+                        'message': str(
+                            getattr(new_doc, 'message_json', '') or '',
+                        ),
+                    })
+                else:
+                    evidence.append({
+                        'attempt': attempt_total,
+                        'timestamp': fields.Datetime.now().isoformat(),
+                        'error': '_send_to_dian not available '
+                                 'on native model',
+                    })
+            except Exception as e:
+                evidence.append({
+                    'attempt': attempt_total,
+                    'timestamp': fields.Datetime.now().isoformat(),
+                    'error': str(e)[:500],
+                })
+                _logger.warning(
+                    "Insotech Contingency: Retry %d failed "
+                    "for %s: %s",
+                    attempt_total, move.name, e,
                 )
 
-                # Get the original XML from the attachment
-                xml_content = self._get_xml_for_retry(doc)
-                if not xml_content:
-                    evidence.append({
-                        'attempt': attempt_total,
-                        'timestamp': fields.Datetime.now().isoformat(),
-                        'error': 'Could not retrieve original XML '
-                                 'from attachment',
-                    })
-                    break
-
-                try:
-                    # Call the native send method
-                    new_doc = self._send_to_dian(xml_content, move)
-
-                    if new_doc.state == 'invoice_accepted':
-                        _logger.info(
-                            "Insotech Contingency: Retry SUCCESS "
-                            "for %s on attempt %d/%d",
-                            move.name, attempt_total, max_retries,
-                        )
-                        # Mark original doc as superseded
-                        evidence.append({
-                            'attempt': attempt_total,
-                            'timestamp': fields.Datetime.now().isoformat(),
-                            'result': 'accepted',
-                            'new_doc_id': new_doc.id,
-                        })
-                        doc.insotech_contingency_evidence = json.dumps(
-                            evidence,
-                        )
-                        success = True
-                        # Post success notification
-                        try:
-                            move.message_post(
-                                body=(
-                                    f"✅ <b>Envío DIAN exitoso</b> en "
-                                    f"reintento {attempt_total}/{max_retries}"
-                                    f".<br/>Documento original (fallido) "
-                                    f"id={doc.id} superado."
-                                ),
-                                message_type='comment',
-                                subtype_xmlid='mail.mt_note',
-                            )
-                        except Exception:
-                            pass
-                        break
-                    else:
-                        evidence.append({
-                            'attempt': attempt_total,
-                            'timestamp': fields.Datetime.now().isoformat(),
-                            'result': new_doc.state,
-                            'message': str(new_doc.message_json or ''),
-                        })
-                except Exception as e:
-                    evidence.append({
-                        'attempt': attempt_total,
-                        'timestamp': fields.Datetime.now().isoformat(),
-                        'error': str(e)[:500],
-                    })
-                    _logger.warning(
-                        "Insotech Contingency: Retry %d failed "
-                        "for %s: %s",
-                        attempt_total, move.name, e,
-                    )
-
-                # Wait before next retry (DIAN protocol: 20s)
-                if attempt_num < attempts_this_run - 1:
-                    time.sleep(interval)
-
-            # Store evidence
             doc.insotech_contingency_evidence = json.dumps(evidence)
 
             if not success:
-                # Check if we've exhausted all retries
                 total_done = doc.insotech_retry_count + 1  # +1 native
                 if total_done >= max_retries:
                     self._activate_contingency(doc, move)
@@ -290,8 +281,8 @@ class L10nCoDianDocument(models.Model):
                 continue
 
             try:
-                new_doc = self._send_to_dian(xml_content, move)
-                if new_doc.state == 'invoice_accepted':
+                new_doc = self._safe_send_to_dian(xml_content, move)
+                if new_doc and new_doc.state == 'invoice_accepted':
                     doc.insotech_contingency_resolved_at = now
                     _logger.info(
                         "Insotech Recovery: SUCCESS for %s — "
@@ -330,6 +321,24 @@ class L10nCoDianDocument(models.Model):
     # -----------------------------------------------------------------
     # PRIVATE HELPERS
     # -----------------------------------------------------------------
+
+    def _safe_send_to_dian(self, xml_content, move):
+        """Safely call the native _send_to_dian method.
+
+        The native l10n_co_dian.document model defines _send_to_dian()
+        which we verified via inspect.getsource() in staging. However,
+        as a defensive measure, we check the method exists before calling
+        it. Returns None if the method is not available.
+        """
+        if not hasattr(self, '_send_to_dian'):
+            _logger.error(
+                "Insotech: _send_to_dian() not found on %s. "
+                "The native l10n_co_dian module may have changed. "
+                "Cannot retry DIAN submission for %s.",
+                self._name, move.name,
+            )
+            return None
+        return self._send_to_dian(xml_content, move)
 
     def _activate_contingency(self, doc, move):
         """Activate contingency mode for a failed document.
