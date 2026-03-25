@@ -12,6 +12,16 @@ def compute_radian_cude(num_ar, fec_ar, hor_ar, nit_ofe, nit_adq, cod_evento, cu
     cude_string = f"{num_ar}{fec_ar}{hor_ar}{nit_ofe}{nit_adq}{cod_evento}{cufe_padre}{pin_software}"
     return hashlib.sha384(cude_string.encode('utf-8')).hexdigest()
 
+def _compute_dv(nit_str):
+    """Calcula dígito de verificación DIAN (Módulo 11) para un NIT."""
+    if not nit_str or not str(nit_str).isdigit():
+        return '0'
+    factors = [3, 7, 13, 17, 19, 23, 29, 37, 41, 43, 47, 53, 59, 67, 71]
+    nit_str = str(nit_str).zfill(15)
+    total = sum(int(digit) * factors[i] for i, digit in enumerate(reversed(nit_str)))
+    remainder = total % 11
+    return str(11 - remainder) if remainder >= 2 else str(remainder)
+
 def _get_claim_description(code):
     if code == '01': return 'Documento con inconsistencias'
     if code == '02': return 'Mercancía no entregada totalmente'
@@ -56,6 +66,9 @@ def generate_application_response(event):
     # Emitida por el Facturador (Seller, NitOFE). Adquiriente (Buyer, NitAdq).
     nit_ofe = partner.vat or ''
     nit_adq = company.vat or ''
+    
+    dv_ofe = _compute_dv(nit_ofe)
+    dv_adq = _compute_dv(nit_adq)
     
     software_pin = company.insotech_dian_software_pin or ''
     software_id = company.insotech_dian_software_id or ''
@@ -114,7 +127,7 @@ def generate_application_response(event):
                         <cbc:IdentificationCode listAgencyID="6" listAgencyName="United Nations Economic Commission for Europe" listSchemeURI="urn:oasis:names:specification:ubl:codelist:gc:CountryIdentificationCode-2.1">CO</cbc:IdentificationCode>
                     </sts:InvoiceSource>
                     <sts:SoftwareProvider>
-                        <sts:ProviderID schemeID="{company.l10n_co_edi_dv}" schemeName="31" schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">{company.vat}</sts:ProviderID>
+                        <sts:ProviderID schemeID="{dv_adq}" schemeName="31" schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">{nit_adq}</sts:ProviderID>
                         <sts:SoftwareID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">{software_id}</sts:SoftwareID>
                     </sts:SoftwareProvider>
                     <sts:SoftwareSecurityCode schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">{cude}</sts:SoftwareSecurityCode>
@@ -143,7 +156,7 @@ def generate_application_response(event):
     <cac:SenderParty>
         <cac:PartyTaxScheme>
             <cbc:RegistrationName>{company.name}</cbc:RegistrationName>
-            <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" schemeID="{company.l10n_co_edi_dv or '1'}" schemeName="31" schemeVersionID="1">{company.vat}</cbc:CompanyID>
+            <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" schemeID="{dv_adq}" schemeName="31" schemeVersionID="1">{nit_adq}</cbc:CompanyID>
             <cac:TaxScheme>                                      
                 <cbc:ID>01</cbc:ID>
                 <cbc:Name>IVA</cbc:Name>
@@ -153,7 +166,7 @@ def generate_application_response(event):
     <cac:ReceiverParty>
         <cac:PartyTaxScheme>
             <cbc:RegistrationName>{partner.name}</cbc:RegistrationName>
-            <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" schemeID="{partner.l10n_co_edi_dv or '1'}" schemeName="31" schemeVersionID="1">{partner.vat}</cbc:CompanyID>
+            <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" schemeID="{dv_ofe}" schemeName="31" schemeVersionID="1">{nit_ofe}</cbc:CompanyID>
             <cac:TaxScheme>
                 <cbc:ID>01</cbc:ID>
                 <cbc:Name>IVA</cbc:Name>
