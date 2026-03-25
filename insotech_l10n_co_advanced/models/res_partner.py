@@ -33,12 +33,19 @@ class ResPartner(models.Model):
         for partner in self:
             # Prevent calling super() because that's where the DIAN request happens.
             
-            # If it's a NIT (usually 31), let's pre-calculate the DV locally.
-            if partner.l10n_co_document_type == '31' and partner.vat:
-                try:
-                    # In Odoo 19 l10n_co, the verification code field varies, 
-                    # but typically it's l10n_co_verification_code
-                    if hasattr(partner, 'l10n_co_verification_code'):
-                        partner.l10n_co_verification_code = _compute_dv_local(partner.vat)
-                except Exception as e:
-                    _logger.debug("Insotech Partner Onchange: Error calculando DV autómata: %s", e)
+            # Use getattr to prevent AttributeError due to field volatility in Odoo 19
+            doc_type = getattr(partner, 'l10n_co_document_type', False)
+            
+            # Additional fallback check for standard LATAM field
+            if not doc_type and hasattr(partner, 'l10n_latam_identification_type_id'):
+                doc_type = getattr(partner.l10n_latam_identification_type_id, 'l10n_co_document_code', False)
+            
+            if doc_type == 'rut' or doc_type == '31':
+                if partner.vat:
+                    try:
+                        # In Odoo 19 l10n_co, the verification code field varies, 
+                        # but typically it's l10n_co_verification_code
+                        if hasattr(partner, 'l10n_co_verification_code'):
+                            partner.l10n_co_verification_code = _compute_dv_local(partner.vat)
+                    except Exception as e:
+                        _logger.debug("Insotech Partner Onchange: Error calculando DV autómata: %s", e)
