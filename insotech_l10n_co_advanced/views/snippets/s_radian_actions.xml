@@ -2,6 +2,7 @@
 <odoo>
     <template id="s_radian_actions" name="Acciones RADIAN">
         <t t-if="invoice.insotech_dian_status == 'accepted'">
+            <t t-set="events" t-value="invoice.env['insotech.radian.event'].sudo().search([('move_id', '=', invoice.id), ('state', '!=', 'error')]).mapped('event_code')"/>
             <div class="o_portal_radian_actions mt-3">
                 <h5 class="mb-3 d-none d-md-block">Título Valor (RADIAN)</h5>
                 
