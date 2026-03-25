@@ -2,65 +2,30 @@
 <odoo>
     <template id="s_radian_traceability" name="Trazabilidad Legal DIAN">
         <t t-if="invoice.insotech_dian_status == 'accepted'">
-            <style type="text/css">
-                .insotech-radian-card {
-                    transition: transform 0.2s ease, box-shadow 0.2s ease;
-                }
-                .insotech-radian-card:hover {
-                    transform: translateY(-3px);
-                    box-shadow: 0 .5rem 1rem rgba(0,0,0,.15)!important;
-                }
-                .insotech-text-primary {
-                    color: #003498 !important;
-                }
-                
-                /* Si está endosada, ocultamos el pago estándar inyectado por Odoo (ePayco/etc) */
-                <t t-set="is_endosada" t-value="invoice.env['insotech.radian.event'].sudo().search_count([('move_id', '=', invoice.id), ('event_code', 'in', ['037', '038']), ('state', '!=', 'error')])" />
-                <t t-if="is_endosada">
-                    #payment_message, .o_payment_form_container, .o_portal_invoice_pay {
-                        display: none !important;
-                    }
-                </t>
-            </style>
-            <div class="o_portal_html_view position-relative bg-white shadow-sm overflow-hidden rounded-4 mb-4 p-4 border-0 insotech-radian-card">
-                <div class="row align-items-center">
-                    <div class="col-12 col-md-8">
-                        <h4 class="insotech-text-primary fw-bold mb-3">
-                            <i class="fa fa-shield"/> Trazabilidad Legal DIAN
-                        </h4>
-                        <div class="mb-2 p-3 bg-light rounded-3 shadow-sm border" t-if="invoice.l10n_co_edi_cufe_cude_ref">
-                            <small class="text-uppercase text-muted fw-bold">Código CUFE / CUDE</small>
-                            <p class="mb-0 text-break font-monospace small"><t t-esc="invoice.l10n_co_edi_cufe_cude_ref"/></p>
-                        </div>
-                        <div class="row mt-3">
-                            <div class="col-6">
-                                <p class="mb-0 small text-uppercase text-muted fw-bold">Resolución</p>
-                                <p class="mb-0 text-dark fw-bold"><t t-esc="invoice.journal_id.l10n_co_edi_dian_authorization_number or 'N/A'"/></p>
-                            </div>
-                            <div class="col-6">
-                                <p class="mb-0 small text-uppercase text-muted fw-bold">Estado DIAN</p>
-                                <p class="mb-0 text-success fw-bold"><i class="fa fa-check-circle"/> Documento Validado</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-12 col-md-4 text-center mt-3 mt-md-0 d-flex justify-content-center">
-                        <div class="p-4 bg-light rounded-3 border d-inline-block shadow-sm">
-                            <h6 class="text-muted fw-bold mb-2">QR DIAN</h6>
-                            <i class="fa fa-qrcode fa-4x text-muted"/>
-                        </div>
-                    </div>
+            <!-- PDF Footer Replica -->
+            <div class="row w-100 mt-2" style="font-size: 0.85rem; color: #000; font-family: sans-serif;">
+                <div class="col-12 col-md-3 text-center mb-3 mb-md-0 pt-2">
+                    <!-- Real QR Code -->
+                    <t t-set="qr_string" t-value="invoice.l10n_co_edi_qr_code if hasattr(invoice, 'l10n_co_edi_qr_code') and invoice.l10n_co_edi_qr_code else 'https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey=' + (invoice.l10n_co_edi_cufe_cude_ref or '')"/>
+                    <img t-attf-src="/report/barcode/?barcode_type=QR&amp;value={{ qr_string }}&amp;width=180&amp;height=180" class="img-fluid border p-1" alt="QR DIAN"/>
+                </div>
+                <div class="col-12 col-md-9 text-start">
+                    <div><strong>DIAN Resolución</strong> <span t-esc="invoice.journal_id.l10n_co_edi_dian_authorization_number or 'N/A'"/></div>
+                    <div><strong>Fecha efectiva desde</strong> <span t-esc="invoice.journal_id.l10n_co_edi_dian_authorization_date or ''"/> <strong>a</strong> <span t-esc="invoice.journal_id.l10n_co_edi_dian_authorization_end_date or ''"/></div>
+                    <div><strong>Número de secuencia desde</strong> <span t-esc="invoice.journal_id.l10n_co_edi_min_range_number or ''"/> <strong>a</strong> <span t-esc="invoice.journal_id.l10n_co_edi_max_range_number or ''"/></div>
+                    
+                    <t t-set="partner_fiscal" t-value="invoice.company_id.partner_id"/>
+                    <t t-if="partner_fiscal">
+                        <div><strong>Régimen fiscal:</strong> <span t-esc="'Responsable de IVA' if partner_fiscal.l10n_co_edi_obligation_type_ids else 'No Responsable'"/></div>
+                        <div><strong>Responsabilidad tributaria:</strong> <span t-esc="', '.join(partner_fiscal.l10n_co_edi_obligation_type_ids.mapped('name')) if partner_fiscal.l10n_co_edi_obligation_type_ids else 'Ninguna'"/></div>
+                    </t>
+                    
+                    <div style="word-break: break-all;"><strong>CUFE:</strong> <span t-esc="invoice.l10n_co_edi_cufe_cude_ref or ''"/></div>
+                    <div><strong>Fecha de emisión:</strong> <span t-esc="invoice.invoice_date"/> <span t-esc="invoice.create_date.strftime('%H:%M:%S') if invoice.create_date else ''"/></div>
+                    <div><strong>Generado por:</strong> InSoTech L10n CO</div>
+                    <div><strong>NIT:</strong> <span t-esc="invoice.company_id.vat"/></div>
                 </div>
             </div>
-            
-            <t t-if="is_endosada">
-                <div class="alert alert-danger shadow-sm rounded-4 mb-4 d-flex align-items-center">
-                    <i class="fa fa-exclamation-triangle fa-2x me-3"/>
-                    <div>
-                        <h5 class="mb-1 fw-bold">Documento Endosado</h5>
-                        <span class="small">Esta factura electrónica ha sido negociada como título valor con una entidad financiera (Evento 037/038).<br/><strong>Por favor, realice su pago únicamente a la nueva entidad acreedora.</strong> El sistema de pagos en línea original ha sido bloqueado preventivamente.</span>
-                    </div>
-                </div>
-            </t>
         </t>
     </template>
 </odoo>

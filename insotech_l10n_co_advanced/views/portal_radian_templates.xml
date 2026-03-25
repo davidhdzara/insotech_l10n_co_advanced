@@ -2,14 +2,24 @@
 <odoo>
     <template id="portal_radian_invoice_inherit" inherit_id="account.portal_invoice_page" name="Portal RADIAN Invoice">
         
-        <!-- Inject Traceability before iframe -->
-        <xpath expr="//div[@id='invoice_content']/div[hasclass('o_portal_html_view')]" position="before">
-            <t t-call="insotech_l10n_co_advanced.s_radian_traceability"/>
-        </xpath>
-
         <!-- Inject Actions in the Sidebar -->
         <xpath expr="//t[@t-set='entries']/div[hasclass('d-flex')]" position="inside">
             <t t-call="insotech_l10n_co_advanced.s_radian_actions"/>
+        </xpath>
+
+        <!-- Inject Traceability and Actions at the bottom of the invoice content -->
+        <xpath expr="//div[@id='invoice_content']" position="inside">
+            <div class="bg-white p-4 shadow-sm mt-4">
+                <t t-call="insotech_l10n_co_advanced.s_radian_traceability"/>
+                
+                <div class="mt-4 pt-4 border-top">
+                    <h4>Acciones RADIAN</h4>
+                    <p class="text-muted small">Utilice estos botones para interactuar con su documento electrónico. Puede justificar su respuesta en el Historial de Comunicación (Chatter) inferior.</p>
+                    <div style="max-width: 400px;">
+                        <t t-call="insotech_l10n_co_advanced.s_radian_actions"/>
+                    </div>
+                </div>
+            </div>
         </xpath>
         
     </template>
