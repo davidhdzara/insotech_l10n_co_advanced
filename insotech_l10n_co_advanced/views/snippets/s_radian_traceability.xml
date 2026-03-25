@@ -44,6 +44,8 @@
                     <div><strong>Fecha de emisión:</strong> <span t-esc="invoice.invoice_date"/> <span t-esc="invoice.create_date.strftime('%H:%M:%S') if invoice.create_date else ''"/></div>
                     <div><strong>Generado por:</strong> Software Propio</div>
                     <div><strong>NIT:</strong> <span t-esc="invoice.company_id.vat"/></div>
+                    <t t-set="sig_val" t-value="invoice._get_dian_signature_value()"/>
+                    <div t-if="sig_val"><strong>Firma:</strong> <span t-esc="sig_val" style="word-break: break-all;"/></div>
                 </div>
                 
             </div>

@@ -45,7 +45,6 @@
 
         <!-- ============================================================
              C. IMPORTE TOTAL CON LETRA (después de los totales)
-             Mismo estilo visual que "Importe total con letra:" nativo.
              ============================================================ -->
         <xpath expr="//div[@id='total']" position="after">
             <div class="row mt-2 mb-2">
@@ -58,8 +57,6 @@
 
         <!-- ============================================================
              D. REFERENCIA DE PAGO + CUENTA BANCARIA
-             Reemplazamos el label nativo "Payment Communication"
-             por "Referencia de pago", y añadimos la cuenta.
              ============================================================ -->
         <xpath expr="//p[@name='payment_communication']" position="replace">
             <p name="payment_communication">
@@ -79,20 +76,7 @@
             </p>
         </xpath>
 
-        <!-- ============================================================
-             E. FIRMA DIGITAL (FOOTER)
-             Solo la firma. Todo lo demás (CUFE, Resolución, Rango,
-             Texto legal) ya lo provee l10n_co_dian nativamente.
-             ============================================================ -->
-        <xpath expr="//div[@id='payment_term']" position="after">
-            <t t-set="signature_value" t-value="o._get_dian_signature_value()"/>
-            <div class="mt-3 pt-2" style="font-size: 0.85em; line-height: 1.6;" t-if="signature_value" id="titulo_valor_firma">
-                <p class="mb-1">
-                    <strong>Firma:</strong>
-                    <span t-esc="signature_value" style="word-break: break-all;"/>
-                </p>
-            </div>
-        </xpath>
+        <!-- Firma ahora vive en s_radian_traceability.xml junto al CUFE y NIT -->
 
     </template>
 </odoo>
