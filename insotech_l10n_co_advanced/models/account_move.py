@@ -158,7 +158,7 @@ class AccountMove(models.Model):
             text = move.currency_id.amount_to_text(move.amount_total) if move.currency_id else ''
             # Formateo estricto para presentación de títulos valor
             if text:
-                text = f"SON: {text.upper()} M/CTE"
+                text = f"SON: {text.upper()}"
             move.amount_to_words = text
 
     def _get_dian_signature_value(self):
