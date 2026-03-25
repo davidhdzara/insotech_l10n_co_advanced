@@ -14,8 +14,8 @@ class TestPreInv(AccountTestInvoicingCommon):
     """
 
     @classmethod
-    def setUpClass(cls, chart_template_ref=None):
-        super().setUpClass(chart_template_ref=chart_template_ref)
+    def setUpClass(cls):
+        super().setUpClass()
         cls.env.cr.savepoint()
 
         # 1. Update company to Colombia
