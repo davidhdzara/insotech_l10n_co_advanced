@@ -3,7 +3,10 @@
     <template id="report_invoice_document_inherit_radian" inherit_id="account.report_invoice_document">
         
         <!-- A. Reconstrucción B2B Premium del Bloque de Cliente -->
-        <xpath expr="//div[hasclass('row')][1]" position="replace">
+        <xpath expr="//div[hasclass('row')][1]" position="attributes">
+            <attribute name="style">display: none !important;</attribute>
+        </xpath>
+        <xpath expr="//div[hasclass('row')][1]" position="before">
             <div class="row mb-5" id="b2b_customer_block">
                 <div class="col-8">
                     <h6 class="text-uppercase fw-bold mb-2" style="color: #003498; letter-spacing: 1px; font-size: 0.85em;">Adquiriente / Deudor</h6>
@@ -25,8 +28,11 @@
         </xpath>
 
         <!-- B. Inyección de Tipología y Fechas DIAN de forma Premium -->
-        <xpath expr="//div[@id='informations']" position="replace">
-            <div id="informations" class="row mb-4 g-3 bg-light rounded-4 p-2 shadow-sm border border-light align-items-center">
+        <xpath expr="//div[@id='informations']" position="attributes">
+            <attribute name="style">display: none !important;</attribute>
+        </xpath>
+        <xpath expr="//div[@id='informations']" position="before">
+            <div id="informations_dian_b2b" class="row mb-4 g-3 bg-light rounded-4 p-2 shadow-sm border border-light align-items-center">
                 <div class="col-auto flex-grow-1 border-end">
                     <strong class="text-uppercase text-muted d-block mb-1" style="font-size: 0.75em;">Tipo Operación</strong>
                     <div class="fw-bold" style="color: #003498;">
@@ -83,7 +89,10 @@
         </xpath>
 
         <!-- D. Consolidación de Bloque DIAN en Footer (Reemplazamos QRs nativos) -->
-        <xpath expr="//div[@id='qrcode']" position="replace">
+        <xpath expr="//div[@id='qrcode']" position="attributes">
+            <attribute name="style">display: none !important;</attribute>
+        </xpath>
+        <xpath expr="//div[@id='qrcode']" position="before">
             <t t-set="show_qr" t-value="o.l10n_co_edi_qr or o.display_qr_code"/>
             <div class="row mt-5 pt-4 border-top avoid-page-break-inside" id="dian_footer_block">
                 <div class="col-2 text-center" t-if="show_qr">
@@ -117,12 +126,9 @@
             </div>
             
             <!-- Hide the generic payment link QR to avoid clutter -->
-            <style>
-                #payment_link_qrcode { display: none !important; }
-            </style>
         </xpath>
-        <xpath expr="//div[@id='payment_link_qrcode']" position="replace">
-            <!-- Borrado intencional a favor del bloque consolidado superior -->
+        <xpath expr="//div[@id='payment_link_qrcode']" position="attributes">
+            <attribute name="style">display: none !important;</attribute>
         </xpath>
 
     </template>
