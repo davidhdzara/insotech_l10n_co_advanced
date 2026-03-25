@@ -53,7 +53,11 @@ def generate_application_response(event):
     """Genera el XML UBL 2.1 para el evento RADIAN especificado."""
     move = event.move_id
     company = event.company_id
-    partner = move.company_id.partner_id
+    
+    # OFE = Obligado a Facturar Electrónicamente (Seller / InSoTech)
+    seller_partner = company.partner_id
+    # ADQ = Adquiriente (Buyer / The Customer clicking the portal)
+    buyer_partner = move.partner_id
     
     # Prefix mapping for unique ID
     prefixes = {
@@ -84,8 +88,8 @@ def generate_application_response(event):
     hor_ar = event_dt.strftime('%H:%M:%S-05:00')
     
     # Emitida por el Facturador (Seller, NitOFE). Adquiriente (Buyer, NitAdq).
-    nit_ofe = _clean_nit(partner.vat, partner)
-    nit_adq = _clean_nit(company.vat, company.partner_id)
+    nit_ofe = _clean_nit(seller_partner.vat, seller_partner)
+    nit_adq = _clean_nit(buyer_partner.vat, buyer_partner)
     
     dv_ofe = _compute_dv(nit_ofe)
     dv_adq = _compute_dv(nit_adq)
@@ -150,7 +154,7 @@ def generate_application_response(event):
                         <cbc:IdentificationCode listAgencyID="6" listAgencyName="United Nations Economic Commission for Europe" listSchemeURI="urn:oasis:names:specification:ubl:codelist:gc:CountryIdentificationCode-2.1">CO</cbc:IdentificationCode>
                     </sts:InvoiceSource>
                     <sts:SoftwareProvider>
-                        <sts:ProviderID schemeID="{dv_adq}" schemeName="31" schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">{nit_adq}</sts:ProviderID>
+                        <sts:ProviderID schemeID="{dv_ofe}" schemeName="31" schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">{nit_ofe}</sts:ProviderID>
                         <sts:SoftwareID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">{software_id}</sts:SoftwareID>
                     </sts:SoftwareProvider>
                     <sts:SoftwareSecurityCode schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">{cude}</sts:SoftwareSecurityCode>
@@ -178,7 +182,7 @@ def generate_application_response(event):
     <cbc:Note>{ar_id}{fec_ar}{hor_ar}{nit_ofe}{nit_adq}{response_code}{cufe_padre}{software_pin}</cbc:Note>
     <cac:SenderParty>
         <cac:PartyTaxScheme>
-            <cbc:RegistrationName>{company.name}</cbc:RegistrationName>
+            <cbc:RegistrationName>{buyer_partner.name}</cbc:RegistrationName>
             <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" schemeID="{dv_adq}" schemeName="31" schemeVersionID="1">{nit_adq}</cbc:CompanyID>
             <cac:TaxScheme>                                      
                 <cbc:ID>01</cbc:ID>
@@ -188,7 +192,7 @@ def generate_application_response(event):
     </cac:SenderParty>
     <cac:ReceiverParty>
         <cac:PartyTaxScheme>
-            <cbc:RegistrationName>{partner.name}</cbc:RegistrationName>
+            <cbc:RegistrationName>{seller_partner.name}</cbc:RegistrationName>
             <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" schemeID="{dv_ofe}" schemeName="31" schemeVersionID="1">{nit_ofe}</cbc:CompanyID>
             <cac:TaxScheme>
                 <cbc:ID>01</cbc:ID>
@@ -208,8 +212,8 @@ def generate_application_response(event):
         </cac:DocumentReference>
         <cac:IssuerParty>
             <cac:Person>
-                <cbc:ID schemeID="4" schemeName="13">{company.vat}</cbc:ID>
-                <cbc:FirstName>{company.name}</cbc:FirstName>
+                <cbc:ID schemeID="4" schemeName="13">{nit_ofe}</cbc:ID>
+                <cbc:FirstName>{seller_partner.name}</cbc:FirstName>
                 <cbc:FamilyName></cbc:FamilyName>
                 <cbc:JobTitle>Representante Legal</cbc:JobTitle>
                 <cbc:OrganizationDepartment>Juridica</cbc:OrganizationDepartment>
