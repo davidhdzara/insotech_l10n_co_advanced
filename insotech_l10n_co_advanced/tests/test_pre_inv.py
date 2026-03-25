@@ -52,12 +52,18 @@ class TestPreInv(AccountTestInvoicingCommon):
             cls.journal_dian.l10n_co_edi_dian_authorization_number = '18760000001'
 
         # 4. Standard Sales Journal (No DIAN config)
-        cls.journal_standard = cls.env['account.journal'].create({
+        standard_vals = {
             'name': 'Ventas Standard (Test)',
             'code': 'TV_STD',
             'type': 'sale',
             'company_id': cls.company_data['company'].id,
-        })
+        }
+        if 'l10n_co_dian_provider' in cls.env['account.journal']._fields:
+            standard_vals['l10n_co_dian_provider'] = False
+        if 'l10n_co_edi_dian_authorization_number' in cls.env['account.journal']._fields:
+            standard_vals['l10n_co_edi_dian_authorization_number'] = False
+
+        cls.journal_standard = cls.env['account.journal'].create(standard_vals)
 
         # 5. Ensure the test PRE-INV sequence exists
         seq = cls.env['ir.sequence'].search([('code', '=', 'insotech.pre.inv')], limit=1)
