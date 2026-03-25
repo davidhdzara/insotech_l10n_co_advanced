@@ -196,8 +196,8 @@ def generate_application_response(event):
     <cbc:Note>{ar_id}{fec_ar}{hor_ar}{nit_ofe}{nit_adq}{response_code}{cufe_padre}{software_pin}</cbc:Note>
     <cac:SenderParty>
         <cac:PartyTaxScheme>
-            <cbc:RegistrationName>{buyer_partner.name}</cbc:RegistrationName>
-            <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" {attr_dv_adq} schemeName="{type_adq}" schemeVersionID="1">{nit_adq}</cbc:CompanyID>
+            <cbc:RegistrationName>{seller_partner.name}</cbc:RegistrationName>
+            <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" {attr_dv_ofe} schemeName="{type_ofe}" schemeVersionID="1">{nit_ofe}</cbc:CompanyID>
             <cac:TaxScheme>                                      
                 <cbc:ID>01</cbc:ID>
                 <cbc:Name>IVA</cbc:Name>
@@ -206,8 +206,8 @@ def generate_application_response(event):
     </cac:SenderParty>
     <cac:ReceiverParty>
         <cac:PartyTaxScheme>
-            <cbc:RegistrationName>{seller_partner.name}</cbc:RegistrationName>
-            <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" {attr_dv_ofe} schemeName="{type_ofe}" schemeVersionID="1">{nit_ofe}</cbc:CompanyID>
+            <cbc:RegistrationName>{buyer_partner.name}</cbc:RegistrationName>
+            <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" {attr_dv_adq} schemeName="{type_adq}" schemeVersionID="1">{nit_adq}</cbc:CompanyID>
             <cac:TaxScheme>
                 <cbc:ID>01</cbc:ID>
                 <cbc:Name>IVA</cbc:Name>

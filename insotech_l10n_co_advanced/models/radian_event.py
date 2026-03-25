@@ -290,11 +290,21 @@ class RadianEvent(models.Model):
                 import io
                 import base64
                 
+                # Filename MUST strictly use the 9-digit NIT (Sender), without DV.
+                # DIAN extracts the sender's NIT from the characters after 'z'.
+                # If company.vat is 9017972495 (10 digits), it causes a silent Code 89.
+                clean_vat = str(company.vat).replace('-', '').replace(' ', '').replace('.', '').strip()
+                if len(clean_vat) == 10 and clean_vat.isdigit():
+                    # Check if it's a NIT (usually 10 digits means 9 + DV)
+                    doc_type = getattr(company.partner_id.l10n_latam_identification_type_id, 'l10n_co_document_code', '31')
+                    if str(doc_type) == '31':
+                        clean_vat = clean_vat[:9]
+                
                 zip_buffer = io.BytesIO()
                 # DIAN requires standard filename + .xml inside .zip.
                 fe_num = str(event.id).zfill(6)
-                xml_filename = f"z{company.vat}000{fe_num}.xml"
-                zip_filename = f"z{company.vat}000{fe_num}.zip"
+                xml_filename = f"z{clean_vat}000{fe_num}.xml"
+                zip_filename = f"z{clean_vat}000{fe_num}.zip"
                 
                 with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
                     zf.writestr(xml_filename, signed_xml_bytes)
