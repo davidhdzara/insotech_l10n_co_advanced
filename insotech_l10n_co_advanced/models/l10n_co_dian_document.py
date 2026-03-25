@@ -390,20 +390,24 @@ class L10nCoDianDocument(models.Model):
         if doc.attachment_id:
             try:
                 import base64
+                import io
+                import zipfile
                 from lxml import etree
-                from odoo.addons.account.tools import xml_utils
+
                 content = base64.b64decode(doc.attachment_id.datas)
-                # The attachment might be the XML directly or a zip
                 # Try to extract XML from zip first
                 try:
-                    return xml_utils._unzip_xml(content)
-                except Exception:
+                    with zipfile.ZipFile(io.BytesIO(content)) as zf:
+                        for name in zf.namelist():
+                            if name.endswith('.xml'):
+                                return zf.read(name)
+                except zipfile.BadZipFile:
                     pass
                 # Try as raw XML
                 try:
                     etree.fromstring(content)
                     return content
-                except Exception:
+                except etree.XMLSyntaxError:
                     pass
             except Exception as e:
                 _logger.debug(
