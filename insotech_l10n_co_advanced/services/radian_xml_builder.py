@@ -35,12 +35,20 @@ def _clean_nit(vat_str, partner_record=None):
     if not doc_type and hasattr(partner_record, 'l10n_latam_identification_type_id'):
         doc_type = getattr(partner_record.l10n_latam_identification_type_id, 'l10n_co_document_code', False)
         
+    doc_type_str = str(doc_type).lower() if doc_type else '31'
+        
     # If it's a NIT and user typed 10 digits, the 10th is likely the DV (e.g. 9017972495)
-    doc_type_str = str(doc_type).lower()
     if (doc_type_str == '31' or doc_type_str == 'rut') and len(vat_str) == 10 and vat_str.isdigit():
         return vat_str[:9]
     
     return vat_str
+
+def _get_doc_type(partner_record):
+    """Retrieves the DIAN document type code (e.g. '13' for CC, '31' for NIT)"""
+    doc_type = getattr(partner_record, 'l10n_co_document_type', False)
+    if not doc_type and hasattr(partner_record, 'l10n_latam_identification_type_id'):
+        doc_type = getattr(partner_record.l10n_latam_identification_type_id, 'l10n_co_document_code', False)
+    return str(doc_type) if doc_type else '31'
 
 def _get_claim_description(code):
     if code == '01': return 'Documento con inconsistencias'
@@ -93,6 +101,12 @@ def generate_application_response(event):
     
     dv_ofe = _compute_dv(nit_ofe)
     dv_adq = _compute_dv(nit_adq)
+    
+    type_ofe = _get_doc_type(seller_partner)
+    type_adq = _get_doc_type(buyer_partner)
+    
+    attr_dv_ofe = f'schemeID="{dv_ofe}"' if type_ofe == '31' else ''
+    attr_dv_adq = f'schemeID="{dv_adq}"' if type_adq == '31' else ''
     
     software_pin = company.insotech_dian_software_pin or ''
     software_id = company.insotech_dian_software_id or ''
@@ -154,7 +168,7 @@ def generate_application_response(event):
                         <cbc:IdentificationCode listAgencyID="6" listAgencyName="United Nations Economic Commission for Europe" listSchemeURI="urn:oasis:names:specification:ubl:codelist:gc:CountryIdentificationCode-2.1">CO</cbc:IdentificationCode>
                     </sts:InvoiceSource>
                     <sts:SoftwareProvider>
-                        <sts:ProviderID schemeID="{dv_ofe}" schemeName="31" schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">{nit_ofe}</sts:ProviderID>
+                        <sts:ProviderID {attr_dv_ofe} schemeName="{type_ofe}" schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">{nit_ofe}</sts:ProviderID>
                         <sts:SoftwareID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">{software_id}</sts:SoftwareID>
                     </sts:SoftwareProvider>
                     <sts:SoftwareSecurityCode schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">{cude}</sts:SoftwareSecurityCode>
@@ -183,7 +197,7 @@ def generate_application_response(event):
     <cac:SenderParty>
         <cac:PartyTaxScheme>
             <cbc:RegistrationName>{buyer_partner.name}</cbc:RegistrationName>
-            <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" schemeID="{dv_adq}" schemeName="31" schemeVersionID="1">{nit_adq}</cbc:CompanyID>
+            <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" {attr_dv_adq} schemeName="{type_adq}" schemeVersionID="1">{nit_adq}</cbc:CompanyID>
             <cac:TaxScheme>                                      
                 <cbc:ID>01</cbc:ID>
                 <cbc:Name>IVA</cbc:Name>
@@ -193,7 +207,7 @@ def generate_application_response(event):
     <cac:ReceiverParty>
         <cac:PartyTaxScheme>
             <cbc:RegistrationName>{seller_partner.name}</cbc:RegistrationName>
-            <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" schemeID="{dv_ofe}" schemeName="31" schemeVersionID="1">{nit_ofe}</cbc:CompanyID>
+            <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" {attr_dv_ofe} schemeName="{type_ofe}" schemeVersionID="1">{nit_ofe}</cbc:CompanyID>
             <cac:TaxScheme>
                 <cbc:ID>01</cbc:ID>
                 <cbc:Name>IVA</cbc:Name>
@@ -212,7 +226,7 @@ def generate_application_response(event):
         </cac:DocumentReference>
         <cac:IssuerParty>
             <cac:Person>
-                <cbc:ID schemeID="4" schemeName="13">{nit_ofe}</cbc:ID>
+                <cbc:ID {attr_dv_ofe} schemeName="{type_ofe}">{nit_ofe}</cbc:ID>
                 <cbc:FirstName>{seller_partner.name}</cbc:FirstName>
                 <cbc:FamilyName></cbc:FamilyName>
                 <cbc:JobTitle>Representante Legal</cbc:JobTitle>
