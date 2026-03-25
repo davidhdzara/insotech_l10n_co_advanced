@@ -168,7 +168,7 @@ def generate_application_response(event):
                         <cbc:IdentificationCode listAgencyID="6" listAgencyName="United Nations Economic Commission for Europe" listSchemeURI="urn:oasis:names:specification:ubl:codelist:gc:CountryIdentificationCode-2.1">CO</cbc:IdentificationCode>
                     </sts:InvoiceSource>
                     <sts:SoftwareProvider>
-                        <sts:ProviderID {attr_dv_ofe} schemeName="{type_ofe}" schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">{nit_ofe}</sts:ProviderID>
+                        <sts:ProviderID {attr_dv_ofe} schemeName="31" schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">{nit_ofe}</sts:ProviderID>
                         <sts:SoftwareID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">{software_id}</sts:SoftwareID>
                     </sts:SoftwareProvider>
                     <sts:SoftwareSecurityCode schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">{cude}</sts:SoftwareSecurityCode>
@@ -228,9 +228,9 @@ def generate_application_response(event):
             <cac:Person>
                 <cbc:ID {attr_dv_ofe} schemeName="{type_ofe}">{nit_ofe}</cbc:ID>
                 <cbc:FirstName>{seller_partner.name}</cbc:FirstName>
-                <cbc:FamilyName></cbc:FamilyName>
+                <cbc:FamilyName>Representante</cbc:FamilyName>
                 <cbc:JobTitle>Representante Legal</cbc:JobTitle>
-                <cbc:OrganizationDepartment>Juridica</cbc:OrganizationDepartment>
+                <cbc:OrganizationDepartment>Ventas</cbc:OrganizationDepartment>
             </cac:Person>
         </cac:IssuerParty>
         {line_response_xml}
