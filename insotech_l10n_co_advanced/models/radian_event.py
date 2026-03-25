@@ -308,17 +308,11 @@ class RadianEvent(models.Model):
                     </SendEventUpdateStatus>
                 '''
                 
-                # Invoke SOAP client manually using WS-Security
-                envelope = soap_client._build_soap_envelope(
-                    body_xml=payload,
-                    action=SOAP_ACTION_EVENT,
-                    to_url=endpoint,
-                    certificate_bytes=p12_bytes,
-                    certificate_password=p12_pass,
-                )
+                # Load the DER certificate and private key from the .p12 binary
+                private_key, cert_pem, cert_der, cert_obj = xml_signer.load_p12(p12_bytes, p12_pass)
                 
-                response_text = soap_client._send_soap(envelope, endpoint, SOAP_ACTION_EVENT)
-                result = soap_client._parse_dian_response(response_text)
+                # Invoke SOAP client manually using WS-Security (_send handles envelope and parsing)
+                result = soap_client._send(SOAP_ACTION_EVENT, endpoint, payload, cert_der, private_key)
                 
                 # Process the synchronous response
                 is_valid = str(result.get('IsValid', 'false')).lower() == 'true'
