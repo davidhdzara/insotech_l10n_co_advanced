@@ -144,14 +144,26 @@ class TestPreInv(AccountTestInvoicingCommon):
 
     def test_04_isolation_standard_journal(self):
         """Escenario 4: El Aislamiento (Diarios estándar y Documentos internos)."""
-        invoice = self._create_invoice(self.journal_standard)
+        # Testing an internal document (Vendor Bill) which bypasses DIAN EDI logic
+        vendor_bill = self.env['account.move'].create({
+            'move_type': 'in_invoice',
+            'partner_id': self.partner_co.id,
+            'invoice_date': '2026-03-25',
+            'invoice_line_ids': [
+                (0, 0, {
+                    'product_id': self.product_a.id,
+                    'quantity': 1,
+                    'price_unit': 1000.0,
+                })
+            ],
+        })
         
         # Confirm
-        invoice.action_post()
+        vendor_bill.action_post()
 
-        # The PRE-INV mechanism should NOT trigger for this journal
-        if invoice.name:
-            self.assertFalse(invoice.name.startswith('PRE-INV'), "Standard journal invoice should not be PRE-INV.")
-        self.assertEqual(invoice.insotech_dian_status, 'not_applicable', "Status should bypass to 'not_applicable'.")
-        self.assertFalse(invoice.insotech_pre_inv_name, "No PRE-INV name should be allocated.")
+        # The PRE-INV mechanism should NOT trigger for this internal document
+        if vendor_bill.name:
+            self.assertFalse(vendor_bill.name.startswith('PRE-INV'), "Standard internal document should not be PRE-INV.")
+        self.assertEqual(vendor_bill.insotech_dian_status, 'not_applicable', "Status should bypass to 'not_applicable'.")
+        self.assertFalse(vendor_bill.insotech_pre_inv_name, "No PRE-INV name should be allocated.")
 
