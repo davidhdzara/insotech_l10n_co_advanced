@@ -29,7 +29,7 @@ from . import test_data as td
 
 _logger = logging.getLogger(__name__)
 
-SOAP_TIMEOUT = 120
+SOAP_TIMEOUT = 45
 
 # Namespaces
 SOAP_NS = 'http://www.w3.org/2003/05/soap-envelope'

@@ -335,9 +335,10 @@ class RadianEvent(models.Model):
                         'mimetype': 'application/xml',
                     })
                     if result.get('ApplicationResponse'): # Attached official app response from DIAN
+                        app_res_bytes = result['ApplicationResponse'].encode('utf-8')
                         self.env['ir.attachment'].create({
                             'name': f"Acuse_DIAN_RAD_{event.event_code}_{move.name}.xml".replace('/', '_'),
-                            'datas': result['ApplicationResponse'].encode(),
+                            'datas': base64.b64encode(app_res_bytes),
                             'res_model': 'account.move',
                             'res_id': move.id,
                             'mimetype': 'application/xml',
