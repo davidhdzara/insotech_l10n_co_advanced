@@ -117,12 +117,25 @@
         <xpath expr="//p[@name='payment_communication']" position="replace">
             <p name="payment_communication">
                 <strong>Referencia de pago:</strong> <span t-field="o.payment_reference"/>
-                <!-- Cuenta bancaria con triple fallback -->
-                <t t-set="bank_account" t-value="o.partner_bank_id or o.journal_id.bank_account_id or (o.company_id.partner_id.bank_ids[:1] if o.company_id.partner_id.bank_ids else False)"/>
-                <t t-if="bank_account">
+                <!-- Preservar este elemento exacto — l10n_co_dian lo busca por xpath -->
+                <t t-if="o.partner_bank_id">
                     <br/>
                     <span class="text-muted" style="font-size: 0.9em;">
-                        en esta cuenta: <span t-esc="bank_account.display_name" class="fw-bold"/>
+                        en esta cuenta: <span t-field="o.partner_bank_id" class="fw-bold"/>
+                    </span>
+                </t>
+                <!-- Fallback: journal bank (solo si no hay partner_bank_id) -->
+                <t t-if="not o.partner_bank_id and o.journal_id.bank_account_id">
+                    <br/>
+                    <span class="text-muted" style="font-size: 0.9em;">
+                        en esta cuenta: <span t-esc="o.journal_id.bank_account_id.display_name" class="fw-bold"/>
+                    </span>
+                </t>
+                <!-- Fallback: company bank (último recurso) -->
+                <t t-if="not o.partner_bank_id and not o.journal_id.bank_account_id and o.company_id.partner_id.bank_ids">
+                    <br/>
+                    <span class="text-muted" style="font-size: 0.9em;">
+                        en esta cuenta: <span t-esc="o.company_id.partner_id.bank_ids[:1].display_name" class="fw-bold"/>
                     </span>
                 </t>
             </p>
