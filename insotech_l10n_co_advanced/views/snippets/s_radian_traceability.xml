@@ -30,7 +30,7 @@
                                 </t>
                             </t>
                             <div>Regimen fiscal: <span t-esc="regime_tax"/></div>
-                            <div>Responsabilidad tributaria: <span t-esc="', '.join(partner_fiscal.l10n_co_edi_obligation_type_ids.mapped('name')) if 'l10n_co_edi_obligation_type_ids' in partner_fiscal and partner_fiscal.l10n_co_edi_obligation_type_ids else 'IVA'"/></div>
+                            <div>Responsabilidad tributaria: <span t-esc="', '.join(partner_fiscal.l10n_co_edi_obligation_type_ids.mapped('description')) if 'l10n_co_edi_obligation_type_ids' in partner_fiscal and partner_fiscal.l10n_co_edi_obligation_type_ids else 'IVA'"/></div>
                             <t t-set="industry" t-value="partner_fiscal.industry_id.name if 'industry_id' in partner_fiscal and partner_fiscal.industry_id else 'No especificada'"/>
                             <div>Actividad económica: <span t-esc="industry"/></div>
                         </t>
@@ -46,6 +46,12 @@
                     <div><strong>NIT:</strong> <span t-esc="invoice.company_id.vat"/></div>
                     <t t-set="sig_val" t-value="invoice._get_dian_signature_value()"/>
                     <div t-if="sig_val"><strong>Firma:</strong> <span t-esc="sig_val" style="word-break: break-all;"/></div>
+                </div>
+                
+                <!-- Texto legal obligatorio -->
+                <div class="col-12 px-0 text-center mt-2" style="font-size: 0.65rem;">
+                    Representación gráfica de facturación electrónica impresa por computador con software propio por
+                    <span t-esc="invoice.company_id.name"/>
                 </div>
                 
             </div>

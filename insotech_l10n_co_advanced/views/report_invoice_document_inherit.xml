@@ -7,37 +7,33 @@
     <template id="report_invoice_document_inherit_radian" inherit_id="account.report_invoice_document">
 
         <!-- ============================================================
-             A. INFORMACIÓN DEL EMISOR (junto al logo/nombre de empresa)
-             Campos tributarios obligatorios: NIT, Tipo Org, Régimen,
-             Responsabilidad, Tipo Operación.
+             A. INFORMACIÓN DEL EMISOR
+             Se inyecta DENTRO del primer div.row (que contiene la dirección),
+             usando la primera fila como ancla genérica.
              ============================================================ -->
-        <xpath expr="//div[@name='no_shipping']" position="before">
+        <xpath expr="//div[hasclass('page')]//h2" position="after">
             <t t-set="company_partner" t-value="o.company_id.partner_id"/>
-            <div class="mb-2" style="font-size: 0.85em; line-height: 1.5;">
-                <!-- NIT con DV -->
+            <t t-set="obligations" t-value="company_partner.l10n_co_edi_obligation_type_ids if company_partner and 'l10n_co_edi_obligation_type_ids' in company_partner._fields else False"/>
+            <t t-set="obligation_codes" t-value="obligations.mapped('name') if obligations else []"/>
+            <t t-set="obligation_descriptions" t-value="obligations.mapped('description') if obligations else []"/>
+            <div class="mb-3" style="font-size: 0.85em; line-height: 1.6;">
                 <div>
                     <strong>NIT:</strong>
                     <span t-esc="o.company_id.vat or ''"/>
-                    <t t-if="company_partner and hasattr(company_partner, 'l10n_co_verification_digit')">
+                    <t t-if="company_partner and 'l10n_co_verification_digit' in company_partner._fields">
                         -<span t-esc="company_partner.l10n_co_verification_digit or ''"/>
                     </t>
                 </div>
-                <!-- Tipo de organización (NIT=Jurídica, CC=Natural) -->
-                <t t-set="id_type" t-value="company_partner.l10n_latam_identification_type_id if company_partner else False"/>
-                <t t-set="doc_code" t-value="id_type.l10n_co_document_code if id_type and hasattr(id_type, 'l10n_co_document_code') else ''"/>
+                <!-- Tipo de organización -->
+                <t t-set="id_type" t-value="company_partner.l10n_latam_identification_type_id if company_partner and 'l10n_latam_identification_type_id' in company_partner._fields else False"/>
+                <t t-set="doc_code" t-value="id_type.l10n_co_document_code if id_type and 'l10n_co_document_code' in id_type._fields else ''"/>
                 <div>
                     <strong>Tipo de organización:</strong>
                     <t t-if="doc_code == '31'">Persona Jurídica</t>
                     <t t-elif="doc_code == '13'">Persona Natural</t>
-                    <t t-else="">
-                        <t t-if="doc_code">Código <t t-esc="doc_code"/></t>
-                        <t t-else="">No definido</t>
-                    </t>
+                    <t t-else="">Persona Jurídica</t>
                 </div>
-                <!-- Tipo de régimen (derivado de obligaciones fiscales) -->
-                <t t-set="obligations" t-value="company_partner.l10n_co_edi_obligation_type_ids if company_partner and hasattr(company_partner, 'l10n_co_edi_obligation_type_ids') else False"/>
-                <t t-set="obligation_codes" t-value="obligations.mapped('name') if obligations else []"/>
-                <t t-set="obligation_descriptions" t-value="obligations.mapped('description') if obligations else []"/>
+                <!-- Tipo de régimen -->
                 <div>
                     <strong>Tipo de régimen:</strong>
                     <t t-if="'O-47' in obligation_codes">Régimen Simple de Tributación - SIMPLE</t>
@@ -65,10 +61,10 @@
         </xpath>
 
         <!-- ============================================================
-             B. COMPLEMENTO AL BLOQUE DE CLIENTE
-             Añadimos: label legal + teléfono + email.
+             B. COMPLEMENTO AL BLOQUE DE CLIENTE (Teléfono + Email)
+             Se inyecta usando la dirección del partner como ancla.
              ============================================================ -->
-        <xpath expr="//div[@name='no_shipping']" position="after">
+        <xpath expr="//div[@name='address']" position="after">
             <div class="mt-2" style="font-size: 0.9em;">
                 <div class="text-uppercase fw-bold text-muted mb-1" style="font-size: 0.8em; letter-spacing: 0.05em;">Adquiriente / Deudor</div>
                 <div t-if="o.partner_id.phone">
@@ -82,7 +78,7 @@
 
         <!-- ============================================================
              C. COMPLEMENTO AL BLOQUE DE INFORMACIÓN
-             Añadimos: Forma de pago y Método de pago.
+             Añadimos: Método de pago y Forma de pago.
              ============================================================ -->
         <xpath expr="//div[@id='informations']" position="inside">
             <div class="col-auto" t-if="o.l10n_co_edi_payment_option_id" name="payment_method">
@@ -112,7 +108,6 @@
 
         <!-- ============================================================
              E. REFERENCIA DE PAGO + CUENTA BANCARIA
-             Fallback: partner_bank_id → journal bank → company bank
              ============================================================ -->
         <xpath expr="//p[@name='payment_communication']" position="replace">
             <p name="payment_communication">
@@ -124,14 +119,14 @@
                         en esta cuenta: <span t-field="o.partner_bank_id" class="fw-bold"/>
                     </span>
                 </t>
-                <!-- Fallback: journal bank (solo si no hay partner_bank_id) -->
+                <!-- Fallback: journal bank -->
                 <t t-if="not o.partner_bank_id and o.journal_id.bank_account_id">
                     <br/>
                     <span class="text-muted" style="font-size: 0.9em;">
                         en esta cuenta: <span t-esc="o.journal_id.bank_account_id.display_name" class="fw-bold"/>
                     </span>
                 </t>
-                <!-- Fallback: company bank (último recurso) -->
+                <!-- Fallback: company bank -->
                 <t t-if="not o.partner_bank_id and not o.journal_id.bank_account_id and o.company_id.partner_id.bank_ids">
                     <br/>
                     <span class="text-muted" style="font-size: 0.9em;">
@@ -139,6 +134,25 @@
                     </span>
                 </t>
             </p>
+        </xpath>
+
+        <!-- ============================================================
+             F. CONTENIDO LEGAL TÍTULO VALOR (FOOTER debajo de payment_term)
+             Método pago, retenciones, valor letras, representación gráfica.
+             CUFE, Firma, Resolución ya están en s_radian_traceability.
+             ============================================================ -->
+        <xpath expr="//div[@id='payment_term']" position="after">
+            <div class="mt-3 pt-2 text-center" style="font-size: 0.85em; line-height: 1.6;" id="titulo_valor_footer">
+                <p class="mb-1" t-if="o.l10n_co_edi_payment_option_id">
+                    <strong>Método de pago:</strong> <span t-field="o.l10n_co_edi_payment_option_id"/>
+                </p>
+                <p class="mb-1 text-muted" style="font-size: 0.9em;">
+                    Las retenciones son solo a nivel informativo.
+                </p>
+                <p class="mb-1">
+                    <strong>Valor en letras:</strong> <span t-esc="o.amount_to_words or ''"/>
+                </p>
+            </div>
         </xpath>
 
         <!-- Firma vive en s_radian_traceability.xml junto al CUFE y NIT -->
