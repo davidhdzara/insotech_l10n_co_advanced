@@ -858,7 +858,7 @@ class AccountMove(models.Model):
                     'Seleccione una ciudad con código DANE',
                 ))
             else:
-                dane_code = getattr(city, 'l10n_co_code', None)
+                dane_code = getattr(city, 'l10n_co_edi_code', None)
                 if not dane_code:
                     issues.append((
                         'Ciudad',
