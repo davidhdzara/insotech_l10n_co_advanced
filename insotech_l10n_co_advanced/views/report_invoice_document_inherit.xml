@@ -7,11 +7,10 @@
     <template id="report_invoice_document_inherit_radian" inherit_id="account.report_invoice_document">
 
         <!-- ============================================================
-             A. INFORMACIÓN DEL EMISOR
-             Se inyecta DENTRO del primer div.row (que contiene la dirección),
-             usando la primera fila como ancla genérica.
+             A. INFORMACIÓN DEL EMISOR + COMPLEMENTO CLIENTE
+             Se inyecta ANTES de #informations (ancla confiable y probada).
              ============================================================ -->
-        <xpath expr="//div[hasclass('page')]//h2" position="after">
+        <xpath expr="//div[@id='informations']" position="before">
             <t t-set="company_partner" t-value="o.company_id.partner_id"/>
             <t t-set="obligations" t-value="company_partner.l10n_co_edi_obligation_type_ids if company_partner and 'l10n_co_edi_obligation_type_ids' in company_partner._fields else False"/>
             <t t-set="obligation_codes" t-value="obligations.mapped('name') if obligations else []"/>
@@ -24,7 +23,6 @@
                         -<span t-esc="company_partner.l10n_co_verification_digit or ''"/>
                     </t>
                 </div>
-                <!-- Tipo de organización -->
                 <t t-set="id_type" t-value="company_partner.l10n_latam_identification_type_id if company_partner and 'l10n_latam_identification_type_id' in company_partner._fields else False"/>
                 <t t-set="doc_code" t-value="id_type.l10n_co_document_code if id_type and 'l10n_co_document_code' in id_type._fields else ''"/>
                 <div>
@@ -33,7 +31,6 @@
                     <t t-elif="doc_code == '13'">Persona Natural</t>
                     <t t-else="">Persona Jurídica</t>
                 </div>
-                <!-- Tipo de régimen -->
                 <div>
                     <strong>Tipo de régimen:</strong>
                     <t t-if="'O-47' in obligation_codes">Régimen Simple de Tributación - SIMPLE</t>
@@ -41,7 +38,6 @@
                     <t t-elif="'O-15' in obligation_codes">Gran contribuyente</t>
                     <t t-else="">Impuesto sobre las ventas – IVA</t>
                 </div>
-                <!-- Tipo de responsabilidad -->
                 <div>
                     <strong>Tipo de responsabilidad:</strong>
                     <t t-if="obligation_descriptions">
@@ -49,7 +45,6 @@
                     </t>
                     <t t-else="">No definida</t>
                 </div>
-                <!-- Tipo de operación -->
                 <div>
                     <strong>Tipo de operación:</strong>
                     <t t-if="o.l10n_co_edi_operation_type">
@@ -58,14 +53,9 @@
                     <t t-else="">Estándar</t>
                 </div>
             </div>
-        </xpath>
 
-        <!-- ============================================================
-             B. COMPLEMENTO AL BLOQUE DE CLIENTE (Teléfono + Email)
-             Se inyecta usando la dirección del partner como ancla.
-             ============================================================ -->
-        <xpath expr="//div[@name='address']" position="after">
-            <div class="mt-2" style="font-size: 0.9em;">
+            <!-- Complemento Cliente: Teléfono + Email -->
+            <div class="mb-2" style="font-size: 0.9em;">
                 <div class="text-uppercase fw-bold text-muted mb-1" style="font-size: 0.8em; letter-spacing: 0.05em;">Adquiriente / Deudor</div>
                 <div t-if="o.partner_id.phone">
                     <strong>Teléfono:</strong> <span t-field="o.partner_id.phone"/>
