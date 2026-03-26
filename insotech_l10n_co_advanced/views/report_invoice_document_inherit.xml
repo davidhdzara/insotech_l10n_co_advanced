@@ -36,19 +36,20 @@
                 </div>
                 <!-- Tipo de régimen (derivado de obligaciones fiscales) -->
                 <t t-set="obligations" t-value="company_partner.l10n_co_edi_obligation_type_ids if company_partner and hasattr(company_partner, 'l10n_co_edi_obligation_type_ids') else False"/>
-                <t t-set="obligation_names" t-value="obligations.mapped('name') if obligations else []"/>
+                <t t-set="obligation_codes" t-value="obligations.mapped('name') if obligations else []"/>
+                <t t-set="obligation_descriptions" t-value="obligations.mapped('description') if obligations else []"/>
                 <div>
                     <strong>Tipo de régimen:</strong>
-                    <t t-if="'O-47' in obligation_names">Régimen Simple de Tributación - SIMPLE</t>
-                    <t t-elif="'O-48' in obligation_names">Impuesto sobre las ventas – IVA</t>
-                    <t t-elif="'O-15' in obligation_names">Gran contribuyente</t>
+                    <t t-if="'O-47' in obligation_codes">Régimen Simple de Tributación - SIMPLE</t>
+                    <t t-elif="'O-48' in obligation_codes">Impuesto sobre las ventas – IVA</t>
+                    <t t-elif="'O-15' in obligation_codes">Gran contribuyente</t>
                     <t t-else="">Impuesto sobre las ventas – IVA</t>
                 </div>
                 <!-- Tipo de responsabilidad -->
                 <div>
                     <strong>Tipo de responsabilidad:</strong>
-                    <t t-if="obligations">
-                        <span t-esc="', '.join(obligation_names)"/>
+                    <t t-if="obligation_descriptions">
+                        <span t-esc="', '.join(obligation_descriptions)"/>
                     </t>
                     <t t-else="">No definida</t>
                 </div>
