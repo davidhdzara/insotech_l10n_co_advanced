@@ -2,53 +2,51 @@
 """RADIAN ApplicationResponse XML Builder.
 
 Generates the UBL 2.1 XML for Events 030, 032, 033, 034, 035.
+
+PURE PYTHON — No Odoo dependencies.
+All data is received via dicts, making this portable across Odoo versions.
+
+Callers (radian_event.py) must construct the context dict from Odoo records.
 """
 
 import hashlib
 from datetime import datetime
 
-def compute_radian_cude(num_ar, fec_ar, hor_ar, nit_ofe, nit_adq, cod_evento, cufe_padre, pin_software):
-    """Calcula el CUDE de un Evento RADIAN según Anexo Técnico 1.9."""
-    cude_string = f"{num_ar}{fec_ar}{hor_ar}{nit_ofe}{nit_adq}{cod_evento}{cufe_padre}{pin_software}"
-    return hashlib.sha384(cude_string.encode('utf-8')).hexdigest()
 
-def _compute_dv(nit_str):
-    """Calcula dígito de verificación DIAN (Módulo 11) para un NIT."""
-    if not nit_str or not str(nit_str).isdigit():
-        return '0'
-    factors = [3, 7, 13, 17, 19, 23, 29, 37, 41, 43, 47, 53, 59, 67, 71]
-    nit_str = str(nit_str).zfill(15)
-    total = sum(int(digit) * factors[i] for i, digit in enumerate(reversed(nit_str)))
-    remainder = total % 11
-    return str(11 - remainder) if remainder >= 2 else str(remainder)
+# -------------------------------------------------------------------------
+# Hashing helpers
+# -------------------------------------------------------------------------
 
-def _clean_nit(vat_str, partner_record=None):
-    """Garantiza que el NIT no lleve giones ni el dígito de verificación empotrado."""
-    if not vat_str:
-        return ''
-    vat_str = str(vat_str).replace(' ', '').replace('.','').replace(',','')
-    if '-' in vat_str:
-        vat_str = vat_str.split('-')[0]
-    
-    # Check if doc_type is conceptually a NIT (31)
-    doc_type = getattr(partner_record, 'l10n_co_document_type', False)
-    if not doc_type and hasattr(partner_record, 'l10n_latam_identification_type_id'):
-        doc_type = getattr(partner_record.l10n_latam_identification_type_id, 'l10n_co_document_code', False)
-        
-    doc_type_str = str(doc_type).lower() if doc_type else '31'
-        
-    # If it's a NIT and user typed 10 digits, the 10th is likely the DV (e.g. 9017972495)
-    if (doc_type_str == '31' or doc_type_str == 'rut') and len(vat_str) == 10 and vat_str.isdigit():
-        return vat_str[:9]
-    
-    return vat_str
+def compute_radian_cude(
+        num_de, fec_emi, hor_emi, nit_fe, doc_adq,
+        response_code, doc_ref_id, doc_type_code,
+        software_pin):
+    """Calcula el CUDE de un ApplicationResponse RADIAN.
 
-def _get_doc_type(partner_record):
-    """Retrieves the DIAN document type code (e.g. '13' for CC, '31' for NIT)"""
-    doc_type = getattr(partner_record, 'l10n_co_document_type', False)
-    if not doc_type and hasattr(partner_record, 'l10n_latam_identification_type_id'):
-        doc_type = getattr(partner_record.l10n_latam_identification_type_id, 'l10n_co_document_code', False)
-    return str(doc_type) if doc_type else '31'
+    Fuente: Anexo Técnico FE v1.9, Sección 11.5 (p670-672)
+    """
+    cude_string = (
+        f"{num_de}{fec_emi}{hor_emi}{nit_fe}{doc_adq}"
+        f"{response_code}{doc_ref_id}{doc_type_code}"
+        f"{software_pin}"
+    )
+    return hashlib.sha384(
+        cude_string.encode('utf-8')
+    ).hexdigest()
+
+
+def compute_software_security_code(software_id, pin, doc_id):
+    """Calcula el SoftwareSecurityCode para ApplicationResponse.
+
+    Formula: SHA384(SoftwareID + PIN + ID)
+    """
+    raw = f"{software_id}{pin}{doc_id}"
+    return hashlib.sha384(raw.encode('utf-8')).hexdigest()
+
+
+# -------------------------------------------------------------------------
+# Claim descriptions
+# -------------------------------------------------------------------------
 
 def _get_claim_description(code):
     if code == '01': return 'Documento con inconsistencias'
@@ -57,27 +55,42 @@ def _get_claim_description(code):
     if code == '04': return 'Servicio no prestado'
     return 'Reclamo'
 
-def generate_application_response(event):
-    """Genera el XML UBL 2.1 para el evento RADIAN especificado."""
-    move = event.move_id
-    company = event.company_id
-    
-    # OFE = Obligado a Facturar Electrónicamente (Seller / InSoTech)
-    seller_partner = company.partner_id
-    # ADQ = Adquiriente (Buyer / The Customer clicking the portal)
-    buyer_partner = move.partner_id
-    
-    # Prefix mapping for unique ID
+
+# -------------------------------------------------------------------------
+# Main XML generator — PURE FUNCTION (receives dicts, not records)
+# -------------------------------------------------------------------------
+
+def generate_application_response(ctx):
+    """Genera el XML UBL 2.1 para un evento RADIAN.
+
+    Args:
+        ctx (dict): Contexto con todos los datos necesarios:
+            - event_id (int): ID del evento
+            - event_code (str): '030', '032', '033', '034', '035'
+            - event_date (datetime): Fecha/hora del evento
+            - claim_code (str|None): Código de reclamo (solo para 034)
+            - seller_nit (str): NIT limpio del vendedor (OFE)
+            - seller_name (str): Nombre del vendedor
+            - seller_doc_type (str): Código tipo doc vendedor ('31', '13', etc.)
+            - seller_dv (str): Dígito de verificación del vendedor
+            - buyer_nit (str): NIT limpio del comprador (ADQ)
+            - buyer_name (str): Nombre del comprador
+            - buyer_doc_type (str): Código tipo doc comprador
+            - buyer_dv (str): Dígito de verificación del comprador
+            - software_id (str): DIAN Software ID
+            - software_pin (str): DIAN Software PIN
+            - cufe (str): CUFE de la factura referenciada
+            - invoice_number (str): Número de la factura
+            - test_mode (bool): True = habilitación, False = producción
+
+    Returns:
+        str: XML string sin firmar
+    """
+    # Prefix mapping
     prefixes = {
-        '030': 'ACR',
-        '032': 'RMD',
-        '033': 'AEX',
-        '034': 'RCL',
-        '031': 'REJ',
-        '035': 'ATC',
+        '030': 'ACR', '032': 'RMD', '033': 'AEX',
+        '034': 'RCL', '031': 'REJ', '035': 'ATC',
     }
-    
-    # Text descriptions
     descriptions = {
         '030': 'Acuse de recibo de Factura Electrónica de Venta',
         '032': 'Recibo de bien y/o prestación del servicio',
@@ -86,69 +99,89 @@ def generate_application_response(event):
         '031': 'Rechazo de la factura electrónica de venta',
         '035': 'Aceptación Tácita de la factura electrónica de venta',
     }
-    
-    prefix = prefixes.get(event.event_code, 'RAD')
-    event_num = str(event.id).zfill(6)
+
+    event_code = ctx['event_code']
+    prefix = prefixes.get(event_code, 'RAD')
+    event_num = str(ctx['event_id']).zfill(6)
     ar_id = f"{prefix}{event_num}"
-    
-    event_dt = event.event_date
+
+    event_dt = ctx['event_date']
     fec_ar = event_dt.strftime('%Y-%m-%d')
     hor_ar = event_dt.strftime('%H:%M:%S-05:00')
-    
-    # Emitida por el Facturador (Seller, NitOFE). Adquiriente (Buyer, NitAdq).
-    nit_ofe = _clean_nit(seller_partner.vat, seller_partner)
-    nit_adq = _clean_nit(buyer_partner.vat, buyer_partner)
-    
-    dv_ofe = _compute_dv(nit_ofe)
-    dv_adq = _compute_dv(nit_adq)
-    
-    type_ofe = _get_doc_type(seller_partner)
-    type_adq = _get_doc_type(buyer_partner)
-    
-    attr_dv_ofe = f'schemeID="{dv_ofe}"' if type_ofe == '31' else ''
-    attr_dv_adq = f'schemeID="{dv_adq}"' if type_adq == '31' else ''
-    
-    software_pin = company.insotech_dian_software_pin or ''
-    software_id = company.insotech_dian_software_id or ''
-    
-    cufe_padre = move.l10n_co_edi_cufe_cude_ref or ''
-    invoice_number = move.name or ''
-    
-    # Calculate CUDE
-    cude = compute_radian_cude(
-        num_ar=ar_id,
-        fec_ar=fec_ar,
-        hor_ar=hor_ar,
-        nit_ofe=nit_ofe,
-        nit_adq=nit_adq,
-        cod_evento=event.event_code,
-        cufe_padre=cufe_padre,
-        pin_software=software_pin
+
+    # NIT handling — caller provides already-cleaned values
+    nit_ofe = ctx['seller_nit']
+    nit_adq = ctx['buyer_nit']
+
+    dv_ofe = ctx.get('seller_dv', '')
+    dv_adq = ctx.get('buyer_dv', '')
+
+    type_ofe = ctx.get('seller_doc_type', '31')
+    type_adq = ctx.get('buyer_doc_type', '13')
+
+    # DV attributes — schemeID is 1..1 (mandatory) per Anexo v1.9
+    attr_dv_ofe = (
+        f'schemeID="{dv_ofe}"' if type_ofe == '31'
+        else 'schemeID=""'
     )
-    
-    profile_id = 'DIAN 2.1: ApplicationResponse de la Factura Electrónica de Venta'
-    response_code = event.event_code
-    response_desc = descriptions.get(event.event_code, '')
-    
-    # Production = 1, Test = 2
-    profile_execution_id = '2' if company.l10n_co_edi_test_mode else '1'
-    
-    # Add Claim Code block if this is a Reclamo 034
-    line_response_xml = ""
-    if event.event_code == '034' and event.claim_code:
-        claim_desc = _get_claim_description(event.claim_code)
-        line_response_xml = f"""
-        <cac:LineResponse>
-            <cac:LineReference>
-                <cbc:LineID>1</cbc:LineID>
-            </cac:LineReference>
-            <cac:Response>
-                <cbc:ResponseCode>{event.claim_code}</cbc:ResponseCode>
-                <cbc:Description>{claim_desc}</cbc:Description>
-            </cac:Response>
-        </cac:LineResponse>
-        """
-        
+    attr_dv_adq = (
+        f'schemeID="{dv_adq}"' if type_adq == '31'
+        else 'schemeID=""'
+    )
+
+    software_pin = ctx.get('software_pin', '')
+    software_id = ctx.get('software_id', '')
+    cufe_padre = ctx.get('cufe', '')
+    invoice_number = ctx.get('invoice_number', '')
+
+    # CUDE calculation
+    cude = compute_radian_cude(
+        num_de=ar_id,
+        fec_emi=fec_ar,
+        hor_emi=hor_ar,
+        nit_fe=nit_ofe,
+        doc_adq=nit_adq,
+        response_code=event_code,
+        doc_ref_id=invoice_number,
+        doc_type_code='01',
+        software_pin=software_pin,
+    )
+
+    # SoftwareSecurityCode
+    software_security_code = compute_software_security_code(
+        software_id=software_id,
+        pin=software_pin,
+        doc_id=ar_id,
+    )
+
+    profile_id = (
+        'DIAN 2.1: ApplicationResponse de '
+        'la Factura Electrónica de Venta'
+    )
+    customization_id = '1'
+    response_code = event_code
+    response_desc = descriptions.get(event_code, '')
+    profile_execution_id = '2' if ctx.get('test_mode') else '1'
+
+    # SenderParty = Seller (OFE), ReceiverParty = Buyer (ADQ)
+    sender_nit = nit_ofe
+    sender_dv = dv_ofe
+    sender_name = ctx['seller_name']
+    sender_type = type_ofe
+    sender_attr_dv = attr_dv_ofe
+    receiver_nit = nit_adq
+    receiver_dv = dv_adq
+    receiver_name = ctx['buyer_name']
+    receiver_type = type_adq
+    receiver_attr_dv = attr_dv_adq
+
+    # LineResponse
+    line_response_code = response_code
+    line_response_desc = response_desc
+    if event_code == '034' and ctx.get('claim_code'):
+        line_response_code = ctx['claim_code']
+        line_response_desc = _get_claim_description(ctx['claim_code'])
+
     xml_template = f"""<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <ApplicationResponse xmlns="urn:oasis:names:specification:ubl:schema:xsd:ApplicationResponse-2"
         xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
@@ -171,7 +204,7 @@ def generate_application_response(event):
                         <sts:ProviderID {attr_dv_ofe} schemeName="31" schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">{nit_ofe}</sts:ProviderID>
                         <sts:SoftwareID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">{software_id}</sts:SoftwareID>
                     </sts:SoftwareProvider>
-                    <sts:SoftwareSecurityCode schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">{cude}</sts:SoftwareSecurityCode>
+                    <sts:SoftwareSecurityCode schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">{software_security_code}</sts:SoftwareSecurityCode>
                     <sts:AuthorizationProvider>
                         <sts:AuthorizationProviderID schemeID="4" schemeName="31" schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">800197268</sts:AuthorizationProviderID>
                     </sts:AuthorizationProvider>
@@ -186,18 +219,18 @@ def generate_application_response(event):
         </ext:UBLExtension>
     </ext:UBLExtensions>
     <cbc:UBLVersionID>UBL 2.1</cbc:UBLVersionID>
-    <cbc:CustomizationID>1</cbc:CustomizationID>
-    <cbc:ProfileID>{profile_id}</cbc:ProfileID>               
+    <cbc:CustomizationID>{customization_id}</cbc:CustomizationID>
+    <cbc:ProfileID>{profile_id}</cbc:ProfileID>
     <cbc:ProfileExecutionID>{profile_execution_id}</cbc:ProfileExecutionID>
     <cbc:ID>{ar_id}</cbc:ID>
-    <cbc:UUID schemeID="2" schemeName="CUDE-SHA384">{cude}</cbc:UUID>
+    <cbc:UUID schemeID="{profile_execution_id}" schemeName="CUDE-SHA384">{cude}</cbc:UUID>
     <cbc:IssueDate>{fec_ar}</cbc:IssueDate>
     <cbc:IssueTime>{hor_ar}</cbc:IssueTime>
-    <cbc:Note>{ar_id}{fec_ar}{hor_ar}{nit_ofe}{nit_adq}{response_code}{cufe_padre}{software_pin}</cbc:Note>
+    <cbc:Note>{ar_id}{fec_ar}{hor_ar}{nit_ofe}{nit_adq}{response_code}{invoice_number}01{software_pin}</cbc:Note>
     <cac:SenderParty>
         <cac:PartyTaxScheme>
-            <cbc:RegistrationName>{seller_partner.name}</cbc:RegistrationName>
-            <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" {attr_dv_ofe} schemeName="{type_ofe}" schemeVersionID="1">{nit_ofe}</cbc:CompanyID>
+            <cbc:RegistrationName>{sender_name}</cbc:RegistrationName>
+            <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" {sender_attr_dv} schemeName="{sender_type}" schemeVersionID="1">{sender_nit}</cbc:CompanyID>
             <cac:TaxScheme>                                      
                 <cbc:ID>01</cbc:ID>
                 <cbc:Name>IVA</cbc:Name>
@@ -206,8 +239,8 @@ def generate_application_response(event):
     </cac:SenderParty>
     <cac:ReceiverParty>
         <cac:PartyTaxScheme>
-            <cbc:RegistrationName>{buyer_partner.name}</cbc:RegistrationName>
-            <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" {attr_dv_adq} schemeName="{type_adq}" schemeVersionID="1">{nit_adq}</cbc:CompanyID>
+            <cbc:RegistrationName>{receiver_name}</cbc:RegistrationName>
+            <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" {receiver_attr_dv} schemeName="{receiver_type}" schemeVersionID="1">{receiver_nit}</cbc:CompanyID>
             <cac:TaxScheme>
                 <cbc:ID>01</cbc:ID>
                 <cbc:Name>IVA</cbc:Name>
@@ -227,13 +260,21 @@ def generate_application_response(event):
         <cac:IssuerParty>
             <cac:Person>
                 <cbc:ID {attr_dv_ofe} schemeName="{type_ofe}">{nit_ofe}</cbc:ID>
-                <cbc:FirstName>{seller_partner.name}</cbc:FirstName>
+                <cbc:FirstName>{sender_name}</cbc:FirstName>
                 <cbc:FamilyName>Representante</cbc:FamilyName>
                 <cbc:JobTitle>Representante Legal</cbc:JobTitle>
                 <cbc:OrganizationDepartment>Ventas</cbc:OrganizationDepartment>
             </cac:Person>
         </cac:IssuerParty>
-        {line_response_xml}
+        <cac:LineResponse>
+            <cac:LineReference>
+                <cbc:LineID>1</cbc:LineID>
+            </cac:LineReference>
+            <cac:Response>
+                <cbc:ResponseCode>{line_response_code}</cbc:ResponseCode>
+                <cbc:Description>{line_response_desc}</cbc:Description>
+            </cac:Response>
+        </cac:LineResponse>
     </cac:DocumentResponse>
 </ApplicationResponse>
 """

@@ -339,7 +339,10 @@ class InsotechDianSetupWizard(models.TransientModel):
             start_number = td.DIAN_HAB_RANGE_FROM + offset
 
             # NIT a 10 dígitos para nomenclatura DIAN
-            nit10 = td.EMITTER['nit'].rjust(10, '0')
+            # Lee de la empresa real, no de test_data
+            emitter = ubl_generator.partner_to_party_dict(
+                self.company_id.partner_id)
+            nit10 = emitter['nit'].rjust(10, '0')
 
             # Facturas
             for i in range(self.num_invoices):
@@ -350,6 +353,7 @@ class InsotechDianSetupWizard(models.TransientModel):
                     software_id=self.software_id,
                     software_pin=self.software_pin,
                     technical_key=self.technical_key,
+                    emitter_data=emitter,
                 )
                 signed_xml = xml_signer.sign_xml(
                     xml_bytes, p12_bytes, self.cert_password,
@@ -389,6 +393,7 @@ class InsotechDianSetupWizard(models.TransientModel):
                     ref_cufe=ref_cf,
                     software_id=self.software_id,
                     software_pin=self.software_pin,
+                    emitter_data=emitter,
                 )
                 signed_xml = xml_signer.sign_xml(
                     xml_bytes, p12_bytes, self.cert_password,
@@ -416,6 +421,7 @@ class InsotechDianSetupWizard(models.TransientModel):
                     ref_cufe=ref_cf,
                     software_id=self.software_id,
                     software_pin=self.software_pin,
+                    emitter_data=emitter,
                 )
                 signed_xml = xml_signer.sign_xml(
                     xml_bytes, p12_bytes, self.cert_password,
@@ -847,17 +853,20 @@ class InsotechDianSetupWizard(models.TransientModel):
             num = td.DIAN_HAB_RANGE_FROM + (
                 int(time.time()) % 4000000)
             doc_number = '%s%s' % (td.DIAN_HAB_PREFIX, num)
+            emitter = ubl_generator.partner_to_party_dict(
+                self.company_id.partner_id)
             xml_bytes = ubl_generator.generate_invoice(
                 number=num,
                 software_id=self.software_id,
                 software_pin=self.software_pin,
                 technical_key=self.technical_key,
+                emitter_data=emitter,
             )
             signed_xml = xml_signer.sign_xml(
                 xml_bytes, p12_bytes, self.cert_password,
             )
 
-            nit10 = td.EMITTER['nit'].rjust(10, '0')
+            nit10 = emitter['nit'].rjust(10, '0')
             filename = 'fv%s%s.xml' % (nit10, doc_number)
 
             log.append(

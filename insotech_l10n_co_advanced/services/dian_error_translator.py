@@ -200,6 +200,32 @@ DIAN_ERROR_MAP = [
         'fields': [],
     },
     {
+        'code': 'FAV05/FBB05',
+        'patterns': ['FAV05', 'FBB05', 'unidad de la cantidad utilizada NO existe'],
+        'message': 'Unidad de medida del producto inválida para la DIAN',
+        'details': (
+            'La Unidad de Medida configurada en el producto (ej. "E48") '
+            'no está en el catálogo de la DIAN. Abra la configuración de Unidades, '
+            'y cambie el código de la unidad a "94" (Unidades de comercio), '
+            '"EA" (Cada Uno) o "NIU" según la Resolución DIAN.'
+        ),
+        'category': 'technical',
+        'fields': [],
+    },
+    {
+        'code': 'RUT01',
+        'patterns': ['RUT01', 'estado del RUT próximamente'],
+        'message': 'Aviso Técnico DIAN: Validación RUT (Ignorable)',
+        'details': (
+            'Esta es una advertencia inofensiva de la DIAN que NO bloquea '
+            'la factura. Informan que pronto activarán validaciones de RUT '
+            'en tiempo real. Si este es el único mensaje, su factura debería '
+            'haber sido aceptada.'
+        ),
+        'category': 'technical',
+        'fields': [],
+    },
+    {
         'code': 'Regla: 90',
         'patterns': ['Regla: 90', 'Regla 90', 'procesado anteriormente',
                      'documento duplicado', 'Duplicate'],

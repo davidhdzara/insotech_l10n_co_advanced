@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+"""InSoTech DIAN Wizard — DIAN configuration for res.company.
+
+This file handles DIAN-specific fields: credentials, certificate,
+contingency config, RADIAN mode, and certificate expiry CRON.
+
+License fields live in insotech_core/models/res_company.py.
+"""
 import base64
 import logging
 

@@ -84,13 +84,13 @@ class RadianPortalController(http.Controller):
             
             if event.state == 'error':
                 safe_err_msg = str(event.notes)[:250] + "..." if event.notes and len(str(event.notes)) > 250 else str(event.notes)
-                return self._redirect_msg(invoice_sudo, 'radian_error', _(f'Transmisión fallida: {safe_err_msg}'))
+                return _redirect_msg(invoice_sudo, 'radian_error', _(f'Transmisión fallida: {safe_err_msg}'))
             
-            return self._redirect_msg(invoice_sudo, 'radian_success', _(f'Evento {event_code} transmitido con éxito (Código Validación DIAN: {str(event.notes)[:50] if event.notes else "OK"}).'))
+            return _redirect_msg(invoice_sudo, 'radian_success', _(f'Evento {event_code} transmitido con éxito (Código Validación DIAN: {str(event.notes)[:50] if event.notes else "OK"}).'))
 
         except Exception as e:
             _logger.error("Insotech RADIAN Portal: Error creating event %s: %s", event_code, str(e))
-            return self._redirect_msg(invoice_sudo, 'radian_error', _('Ocurrió un error registrando el evento RADIAN.'))
+            return _redirect_msg(invoice_sudo, 'radian_error', _('Ocurrió un error registrando el evento RADIAN.'))
 
     def _document_check_access(self, model_name, document_id, access_token=None):
         """Helper to check access rights using core Odoo mechanism."""
@@ -102,6 +102,9 @@ class RadianPortalController(http.Controller):
             document.check_access_rights('read')
             document.check_access_rule('read')
         except Exception:
-            if not access_token or not document_sudo._check_token(access_token):
+            if not access_token or not document_sudo.access_token:
+                raise Forbidden()
+            from odoo.tools import consteq
+            if not consteq(document_sudo.access_token, access_token):
                 raise Forbidden()
         return document_sudo

@@ -1,3 +1,14 @@
+# -*- coding: utf-8 -*-
+"""InSoTech Core — License management for res.company.
+
+This file ONLY handles SaaS licensing fields and validation.
+DIAN-specific fields live in insotech_dian_wizard/models/res_company.py.
+
+Fields defined here:
+- insotech_license_token          → Token de licencia SaaS
+- insotech_usage_count            → Contador de usos (reset on ping)
+- insotech_last_successful_ping   → Último ping exitoso al license server
+"""
 import logging
 import requests
 from datetime import timedelta
@@ -5,8 +16,10 @@ from odoo import models, fields
 
 _logger = logging.getLogger(__name__)
 
+
 class ResCompany(models.Model):
     _inherit = 'res.company'
+
 
     insotech_license_token = fields.Char(string="Token de Licencia Insotech")
     insotech_usage_count = fields.Integer(string="Contador de Uso Insotech", default=0, copy=False)

@@ -33,7 +33,7 @@
 
 import logging
 
-from odoo import models
+from odoo import api, models
 
 _logger = logging.getLogger(__name__)
 
@@ -151,3 +151,5 @@ class AccountEdiDocument(models.Model):
         return any(keyword in format_name for keyword in [
             'colombia', 'dian', 'ubl 2.1', 'co ',
         ])
+
+

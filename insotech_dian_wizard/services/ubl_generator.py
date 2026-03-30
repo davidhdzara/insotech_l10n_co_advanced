@@ -24,6 +24,22 @@ from lxml import etree
 from . import test_data as td
 
 
+# =====================================================================
+# Helper: res.partner → party dict (for generic wizard)
+# =====================================================================
+# Canonical implementation lives in insotech_core.utils.dian
+# Import here for backward compatibility and convenience
+
+from odoo.addons.insotech_core.utils.dian import (
+    compute_dv as _compute_dv_canonical,
+    clean_nit as _clean_nit,
+    get_doc_type_code,
+    get_partner_doc_type as _get_partner_doc_type,
+    partner_to_dian_dict as partner_to_party_dict,
+)
+
+
+
 def _el(parent, tag, text=None, **attribs):
     """Crea un sub-elemento XML con texto y atributos opcionales."""
     elem = etree.SubElement(parent, tag)
@@ -143,7 +159,7 @@ def _add_ubl_extensions(root, ns_ext):
 def _add_dian_extensions(
     parent, software_id, software_pin, doc_number,
     technical_key=None, software_security_code=None,
-    cufe_or_cude=None,
+    cufe_or_cude=None, emitter_data=None,
 ):
     """Agrega sts:DianExtensions con InvoiceControl y SoftwareProvider."""
     ns_sts = td.NS['sts']
@@ -175,12 +191,14 @@ def _add_dian_extensions(
         'Commission for Europe', listSchemeURI='urn:oasis:names:'
         'specification:ubl:codelist:gc:CountryIdentificationCode-2.1')
 
-    # SoftwareProvider
+    # SoftwareProvider — reads from emitter_data (dynamic) or
+    # td.EMITTER (fallback for backward compat)
+    _emitter = emitter_data or td.EMITTER
     sp = _el(dian_ext, '{%s}SoftwareProvider' % ns_sts)
-    _el(sp, '{%s}ProviderID' % ns_sts, td.EMITTER['nit'],
+    _el(sp, '{%s}ProviderID' % ns_sts, _emitter['nit'],
         schemeAgencyID='195', schemeAgencyName='CO, DIAN '
         '(Dirección de Impuestos y Aduanas Nacionales)',
-        schemeID=td.EMITTER['dv'],
+        schemeID=_emitter['dv'],
         schemeName='31')
     _el(sp, '{%s}SoftwareID' % ns_sts, software_id,
         schemeAgencyID='195', schemeAgencyName='CO, DIAN '
@@ -474,6 +492,7 @@ def _add_debit_note_line(parent, line_number=1):
 def generate_invoice(
     number, software_id, software_pin, technical_key,
     issue_date=None, issue_time=None, environment_type='2',
+    emitter_data=None,
 ):
     """Genera un XML UBL 2.1 de factura electrónica de prueba.
 
@@ -520,11 +539,13 @@ def generate_invoice(
     # UBLExtensions (DIAN + Signature placeholder)
     ext1_content, ext2_content = _add_ubl_extensions(root, ns_ext)
 
+    emitter = emitter_data or td.EMITTER
+
     # Compute CUFE FIRST (needed for QR Code in DianExtensions)
     cufe, cufe_raw = _compute_cufe(
         doc_number, issue_date, issue_time,
         t['line_extension_amount'], t['tax_amount'], '0.00', '0.00',
-        t['tax_inclusive_amount'], td.EMITTER['nit'],
+        t['tax_inclusive_amount'], emitter['nit'],
         td.RECEIVER['nit'], software_pin,
         environment_type, technical_key,
     )
@@ -532,7 +553,7 @@ def generate_invoice(
     _add_dian_extensions(
         ext1_content, software_id, software_pin,
         doc_number, technical_key=technical_key,
-        cufe_or_cude=cufe,
+        cufe_or_cude=cufe, emitter_data=emitter,
     )
 
     # UBL header
@@ -556,7 +577,7 @@ def generate_invoice(
         doc_number, issue_date, issue_time,
         t['line_extension_amount'],
         '01', t['tax_amount'], '04', '0.00', '03', '0.00',
-        t['tax_inclusive_amount'], td.EMITTER['nit'],
+        t['tax_inclusive_amount'], emitter['nit'],
         td.RECEIVER['nit'], technical_key, environment_type,
     ])
     _cbc(root, 'Note', cufe_raw)
@@ -564,7 +585,7 @@ def generate_invoice(
     _cbc(root, 'LineCountNumeric', '1')
 
     # Parties
-    _add_party(root, td.EMITTER, 'AccountingSupplierParty')
+    _add_party(root, emitter, 'AccountingSupplierParty')
     _add_party(root, td.RECEIVER, 'AccountingCustomerParty')
 
     # Delivery (oficial DIAN: Delivery > DeliveryAddress)
@@ -609,6 +630,7 @@ def generate_credit_note(
     number, ref_invoice_number, ref_cufe,
     software_id, software_pin,
     issue_date=None, issue_time=None, environment_type='2',
+    emitter_data=None,
 ):
     """Genera un XML UBL 2.1 de nota crédito electrónica de prueba.
 
@@ -654,17 +676,19 @@ def generate_credit_note(
 
     ext1_content, ext2_content = _add_ubl_extensions(root, ns_ext)
 
+    emitter = emitter_data or td.EMITTER
+
     # Compute CUDE FIRST (needed for QR Code)
     cude = _compute_cude(
         doc_number, issue_date, issue_time,
         t['line_extension_amount'], t['tax_amount'], '0.00', '0.00',
-        t['tax_inclusive_amount'], td.EMITTER['nit'],
+        t['tax_inclusive_amount'], emitter['nit'],
         td.RECEIVER['nit'], software_pin, environment_type,
     )
 
     _add_dian_extensions(
         ext1_content, software_id, software_pin, doc_number,
-        cufe_or_cude=cude,
+        cufe_or_cude=cude, emitter_data=emitter,
     )
 
     _cbc(root, 'UBLVersionID', td.UBL_VERSION)
@@ -699,7 +723,7 @@ def generate_credit_note(
     _cbc(inv_ref, 'IssueDate', issue_date)
 
     # Parties
-    _add_party(root, td.EMITTER, 'AccountingSupplierParty')
+    _add_party(root, emitter, 'AccountingSupplierParty')
     _add_party(root, td.RECEIVER, 'AccountingCustomerParty')
 
     pm = _cac(root, 'PaymentMeans')
@@ -720,6 +744,7 @@ def generate_debit_note(
     number, ref_invoice_number, ref_cufe,
     software_id, software_pin,
     issue_date=None, issue_time=None, environment_type='2',
+    emitter_data=None,
 ):
     """Genera un XML UBL 2.1 de nota débito electrónica de prueba."""
     ns_dn = td.NS['dn']
@@ -751,17 +776,19 @@ def generate_debit_note(
 
     ext1_content, ext2_content = _add_ubl_extensions(root, ns_ext)
 
+    emitter = emitter_data or td.EMITTER
+
     # Compute CUDE FIRST (needed for QR Code)
     cude = _compute_cude(
         doc_number, issue_date, issue_time,
         t['line_extension_amount'], t['tax_amount'], '0.00', '0.00',
-        t['tax_inclusive_amount'], td.EMITTER['nit'],
+        t['tax_inclusive_amount'], emitter['nit'],
         td.RECEIVER['nit'], software_pin, environment_type,
     )
 
     _add_dian_extensions(
         ext1_content, software_id, software_pin, doc_number,
-        cufe_or_cude=cude,
+        cufe_or_cude=cude, emitter_data=emitter,
     )
 
     _cbc(root, 'UBLVersionID', td.UBL_VERSION)
@@ -795,7 +822,7 @@ def generate_debit_note(
     _cbc(inv_ref, 'IssueDate', issue_date)
 
     # Parties
-    _add_party(root, td.EMITTER, 'AccountingSupplierParty')
+    _add_party(root, emitter, 'AccountingSupplierParty')
     _add_party(root, td.RECEIVER, 'AccountingCustomerParty')
 
     pm = _cac(root, 'PaymentMeans')

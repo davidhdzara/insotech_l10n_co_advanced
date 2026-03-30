@@ -6,15 +6,13 @@ en Odoo (ni productos, ni contactos, ni categorías).
 """
 
 
+from odoo.addons.insotech_core.utils.dian import compute_dv
+
+
 def _compute_dv(nit_str):
-    """Calcula dígito de verificación DIAN para un NIT colombiano."""
-    factors = [3, 7, 13, 17, 19, 23, 29, 37, 41, 43, 47, 53, 59, 67, 71]
-    nit_str = str(nit_str).zfill(15)
-    total = 0
-    for i, digit in enumerate(reversed(nit_str)):
-        total += int(digit) * factors[i]
-    remainder = total % 11
-    return str(11 - remainder) if remainder >= 2 else str(remainder)
+    """Wrapper de compatibilidad — delega a insotech_core.utils.dian."""
+    return compute_dv(nit_str)
+
 
 # =====================================================================
 # Constantes del entorno de habilitación DIAN

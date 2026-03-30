@@ -11,6 +11,7 @@ Legal basis:
 """
 
 import logging
+from datetime import datetime
 
 from odoo import api, fields, models
 
@@ -254,8 +255,47 @@ class RadianEvent(models.Model):
                 continue
 
             try:
-                # 1. Build Raw UBL 2.1 ApplicationResponse
-                xml_string = radian_xml_builder.generate_application_response(event)
+                # 0. Sync event_date to NOW so IssueDate == SigningTime
+                #    DIAN rule AAD09e: "fecha de generación del evento
+                #    debe ser igual a la fecha de firma del evento"
+                event.event_date = datetime.now()
+
+                # 1. Build context dict for pure XML builder
+                from odoo.addons.insotech_core.utils.dian import (
+                    get_partner_doc_type, clean_nit, compute_dv,
+                )
+                move = event.move_id
+                seller_partner = company.partner_id
+                buyer_partner = move.partner_id
+
+                # Pre-process NIT + DV (builder is pure, receives clean data)
+                seller_nit = clean_nit(seller_partner.vat or '')
+                buyer_nit = clean_nit(buyer_partner.vat or '')
+
+                ctx = {
+                    'event_id': event.id,
+                    'event_code': event.event_code,
+                    'event_date': event.event_date,
+                    'claim_code': event.claim_code if event.event_code == '034' else None,
+                    'seller_nit': seller_nit,
+                    'seller_name': seller_partner.name or '',
+                    'seller_doc_type': get_partner_doc_type(seller_partner),
+                    'seller_dv': compute_dv(seller_nit),
+                    'buyer_nit': buyer_nit,
+                    'buyer_name': buyer_partner.name or '',
+                    'buyer_doc_type': get_partner_doc_type(buyer_partner),
+                    'buyer_dv': compute_dv(buyer_nit),
+                    'software_id': company.insotech_dian_software_id or '',
+                    'software_pin': company.insotech_dian_software_pin or '',
+                    'cufe': move.l10n_co_edi_cufe_cude_ref or '',
+                    'invoice_number': move.name or '',
+                    'test_mode': company.l10n_co_edi_test_mode,
+                }
+
+
+                # 2. Build Raw UBL 2.1 ApplicationResponse
+                xml_string = radian_xml_builder.generate_application_response(ctx)
+
                 xml_bytes = xml_string.encode('utf-8')
 
                 # 2. Extract PIN and .p12 data
