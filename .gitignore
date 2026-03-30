@@ -25,37 +25,14 @@ build/
 Thumbs.db
 
 # ============================================================
-# Documentos privados / internos
-# Estos NO son parte del módulo y no deben ir al repo público
+# Documentación — NO es parte del módulo
 # ============================================================
+Documentacion/
 
-# Prompts del agente (instrucciones internas)
+# ============================================================
+# Archivos internos del agente / prompts
+# ============================================================
 prompt_*.md
-
-# Instrucciones para el desarrollador/agente
 DEVELOPER_AGENT_PROMPT.md
 GIT_INSTRUCTIONS.md
-
-# Documentación interna (backlog, propuestas, herramientas DIAN)
-Documentacion/Backlog/
-Documentacion/propuestas/
-Documentacion/Caja_de_herramientas_*/
-Documentacion/Información base/
-Documentacion/instructivo/
-Documentacion/aprendizajes/
-Documentacion/BLOG_TRACKER.md
-
-# Skill de base de conocimiento (aprendizajes internos)
 .agent/
-
-# ============================================================
-# SÍ se incluyen (NO ignorar):
-# ============================================================
-# insotech_l10n_co_advanced/    → módulo principal
-# insotech_core/                → módulo core
-# insotech_dian_wizard/         → módulo wizard
-# README.md                     → descripción pública
-# Documentacion/insotech_l10n_co_advanced/  → docs técnicas del módulo
-# Documentacion/insotech_core/             → docs técnicas core
-# Documentacion/insotech_dian_wizard/      → docs técnicas wizard
-# Documentacion/Instructivo_Usuario_Final.md → guía usuario
