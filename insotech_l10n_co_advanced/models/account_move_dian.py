@@ -7,7 +7,7 @@ Handles:
 - UoM sanitization (DIAN FAV05/FBB05)
 - License validation before DIAN send
 - Duplicate consecutive protection
-- l10n_co_dian method hooks (_l10n_co_dian_post, etc.)
+- l10n_co_dian method hooks (_l10n_co_dian_send_invoice_xml, etc.)
 - action_send_and_print override
 - User actions (retry, force accept, verify CUFE)
 """
@@ -515,29 +515,16 @@ class AccountMoveDian(models.Model):
 
     # -------------------------------------------------------------------------
     # HOOKS INTO l10n_co_dian — Intercept DIAN Send & Response
+    # Odoo 18: uses _l10n_co_dian_send_invoice_xml (not _l10n_co_dian_post)
     # -------------------------------------------------------------------------
 
-    def _l10n_co_dian_post(self, *args, **kwargs):
-        """Override l10n_co_dian's posting/sending method."""
+    def _l10n_co_dian_send_invoice_xml(self, *args, **kwargs):
+        """Override l10n_co_dian's invoice XML sending method (Odoo 18)."""
         self._insotech_validate_license_before_dian()
         self._insotech_swap_to_dian_name()
         try:
-            if hasattr(super(), '_l10n_co_dian_post'):
-                return super()._l10n_co_dian_post(
-                    *args, **kwargs
-                )
-        except Exception:
-            self._insotech_swap_to_pre_inv_name()
-            raise
-        return True
-
-    def _l10n_co_edi_send(self, *args, **kwargs):
-        """Override l10n_co_edi's send method (alternative hook)."""
-        self._insotech_validate_license_before_dian()
-        self._insotech_swap_to_dian_name()
-        try:
-            if hasattr(super(), '_l10n_co_edi_send'):
-                return super()._l10n_co_edi_send(
+            if hasattr(super(), '_l10n_co_dian_send_invoice_xml'):
+                return super()._l10n_co_dian_send_invoice_xml(
                     *args, **kwargs
                 )
         except Exception:
@@ -562,7 +549,7 @@ class AccountMoveDian(models.Model):
         return True
 
     # -------------------------------------------------------------------------
-    # MAIN INTERCEPTION — action_send_and_print (Odoo 19)
+    # MAIN INTERCEPTION — action_send_and_print (Odoo 18/19)
     # -------------------------------------------------------------------------
 
     def action_send_and_print(self, **kwargs):
