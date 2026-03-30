@@ -15,7 +15,7 @@ def _compute_dv_local(nit_str):
 class ResPartner(models.Model):
     _inherit = 'res.partner'
 
-    @api.onchange('l10n_co_document_type', 'vat')
+    @api.onchange('vat')
     def _l10n_co_dian_onchange_identification_type(self):
         """Sobrescribe el onchange nativo peligroso de Odoo 19.
         

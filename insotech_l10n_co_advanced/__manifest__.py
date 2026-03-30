@@ -11,6 +11,7 @@
     'website': 'https://www.insotech.it',
     'depends': [
         'account',
+        'l10n_co_edi',
         'l10n_co_dian',
         'mail',
         'insotech_core',

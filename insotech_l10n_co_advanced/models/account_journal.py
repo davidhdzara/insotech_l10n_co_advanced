@@ -319,6 +319,9 @@ class AccountJournal(models.Model):
     # -----------------------------------------------------------------
 
     def button_l10n_co_dian_fetch_numbering_range(self):
+        # Safe check: method may not exist in all Odoo versions
+        if not hasattr(super(), 'button_l10n_co_dian_fetch_numbering_range'):
+            return True
         """Override: sanitize NIT and improve DIAN error messages.
 
         Fixes two known issues with GetNumberingRange:
