@@ -55,10 +55,6 @@ class AccountMovePreInv(models.Model):
 
         For non-Colombian-EDI invoices, the flow is completely untouched.
         """
-        # --- RADIAN Irrevocability Check ---
-        # Block NC/ND on invoices that have been accepted as título valor
-        self._insotech_check_radian_irrevocability()
-
         # Call super first — this assigns the journal sequence name
         posted = super()._post(soft=soft)
 
