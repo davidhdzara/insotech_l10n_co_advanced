@@ -425,3 +425,65 @@ class L10nCoDianDocument(models.Model):
                     doc.attachment_id.id, e,
                 )
         return None
+
+    # -----------------------------------------------------------------
+    # STATE INTERCEPTION (DIAN Acceptance/Rejection)
+    # -----------------------------------------------------------------
+
+    def write(self, vals):
+        """Override write to detect DIAN state changes natively.
+
+        Odoo 19 l10n_co_dian manages document states asynchronously here
+        rather than in account.edi.document. We intercept state changes
+        to trigger PRE-INV name mutation.
+        """
+        moves_to_accept = self.env['account.move']
+        moves_to_reject = self.env['account.move']
+
+        if 'state' in vals:
+            for doc in self:
+                move = doc.move_id
+                if not move or move.insotech_dian_status != 'pending':
+                    continue
+
+                new_state = vals.get('state', doc.state)
+                if new_state == 'invoice_accepted' and doc.state != 'invoice_accepted':
+                    moves_to_accept |= move
+                elif new_state in ('invoice_sending_failed', 'invoice_validation_failed') and doc.state not in ('invoice_sending_failed', 'invoice_validation_failed'):
+                    moves_to_reject |= move
+
+        result = super().write(vals)
+
+        for move in moves_to_accept:
+            try:
+                _logger.info(
+                    "Insotech: DIAN acceptance detected natively via l10n_co_dian.document "
+                    "for move %s. Triggering name mutation.", move.name
+                )
+                move._insotech_process_dian_acceptance()
+            except Exception as e:
+                _logger.error("Insotech: Error processing DIAN acceptance: %s", e)
+
+        for move in moves_to_reject:
+            try:
+                error_msg = ''
+                for doc in self.filtered(lambda d: d.move_id == move):
+                    # Usually l10n_co_dian puts errors in message_json
+                    msg_json = getattr(doc, 'message_json', '') or ''
+                    if msg_json:
+                        import json
+                        try:
+                            parsed = json.loads(msg_json)
+                            if isinstance(parsed, dict) and 'message' in parsed:
+                                error_msg = parsed['message']
+                            else:
+                                error_msg = str(parsed)
+                        except Exception:
+                            error_msg = msg_json
+                
+                _logger.warning("Insotech: DIAN rejection detected via l10n_co_dian.document for move %s.", move.name)
+                move._insotech_process_dian_rejection(error_message=error_msg)
+            except Exception as e:
+                _logger.error("Insotech: Error processing DIAN rejection: %s", e)
+
+        return result
