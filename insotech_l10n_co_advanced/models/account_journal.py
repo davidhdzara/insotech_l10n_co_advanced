@@ -69,13 +69,16 @@ class AccountJournal(models.Model):
             total = max_r - min_r + 1
 
             # Primary: read from ir.config_parameter
-            param_key = (
-                'insotech.dian.last_consecutive.%d'
-                % journal.id
-            )
-            last_consecutive = int(
-                ICP.get_param(param_key, '0')
-            )
+            if isinstance(journal.id, models.NewId) or not journal.id:
+                last_consecutive = 0
+            else:
+                param_key = (
+                    'insotech.dian.last_consecutive.%d'
+                    % journal.id
+                )
+                last_consecutive = int(
+                    ICP.get_param(param_key, '0')
+                )
 
             if last_consecutive >= min_r:
                 # Compute used from the persisted consecutive
