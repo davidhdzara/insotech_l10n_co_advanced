@@ -69,7 +69,7 @@ class AccountJournal(models.Model):
             total = max_r - min_r + 1
 
             # Primary: read from ir.config_parameter
-            if isinstance(journal.id, models.NewId) or not journal.id:
+            if not isinstance(journal.id, int):
                 last_consecutive = 0
             else:
                 param_key = (
