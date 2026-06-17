@@ -45,4 +45,5 @@
     'application': False,
     'auto_install': False,
     'license': 'OPL-1',
+    'post_init_hook': 'post_init_hook',
 }
