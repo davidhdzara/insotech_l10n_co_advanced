@@ -28,10 +28,11 @@ def post_init_hook(env):
     updated_count = 0
     for city in cities:
         dane_code = city.l10n_co_edi_code
-        if dane_code in mapping:
-            # Solo escribimos si está vacío o si queremos forzar actualización
+        if not dane_code: continue
+        dane_lookup = dane_code.zfill(5)
+        if dane_lookup in mapping:
             if not city.zipcode:
-                city.write({'zipcode': mapping[dane_code]})
+                city.write({'zipcode': mapping[dane_lookup]})
                 updated_count += 1
                 
     _logger.info(f"Se actualizaron exitosamente {updated_count} códigos postales.")
