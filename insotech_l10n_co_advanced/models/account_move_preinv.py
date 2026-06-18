@@ -55,6 +55,10 @@ class AccountMovePreInv(models.Model):
 
         For non-Colombian-EDI invoices, the flow is completely untouched.
         """
+        # --- RADIAN Irrevocability Check ---
+        # Block NC/ND on invoices that have been accepted as título valor
+        self._insotech_check_radian_irrevocability()
+
         # Call super first — this assigns the journal sequence name
         posted = super()._post(soft=soft)
 
@@ -235,42 +239,3 @@ class AccountMovePreInv(models.Model):
                 move.with_context(
                     skip_account_move_synchronization=True,
                 ).write({'name': pre_inv})
-
-    # -------------------------------------------------------------------------
-    # DRAFT PROTECTION — Prevent user from causing sequence gaps
-    # -------------------------------------------------------------------------
-
-    def button_draft(self):
-        """Override to protect DIAN sequences from being bypassed via draft state."""
-        for move in self:
-            if not getattr(move, 'insotech_is_co_edi', False):
-                continue
-                
-            if getattr(move, 'insotech_dian_status', False) == 'accepted' or getattr(move, 'l10n_co_edi_cufe_cude_ref', False):
-                raise UserError(_(
-                    "NO PERMITIDO: Esta factura ya fue procesada por la DIAN o tiene CUFE. "
-                    "Restablecerla a borrador destruiría la secuencia. "
-                    "Si necesita anularla, debe emitir una Nota Crédito."
-                ))
-                
-            if getattr(move, 'insotech_dian_status', False) == 'pending':
-                if not self.env.user.has_group('account.group_account_manager'):
-                    raise UserError(_(
-                        "Solo un Administrador Contable puede restablecer a borrador "
-                        "una factura que está siendo evaluada por la DIAN."
-                    ))
-                _logger.warning("Insotech: Factura pendiente %s forzada a borrador por admin %s", move.name, self.env.user.login)
-                move.insotech_pre_inv_name = False
-                move.insotech_dian_status = 'not_applicable'
-                if move.insotech_reserved_dian_name:
-                    move.name = move.insotech_reserved_dian_name
-                    move.insotech_reserved_dian_name = False
-                    
-            if getattr(move, 'insotech_dian_status', False) == 'rejected':
-                move.insotech_pre_inv_name = False
-                move.insotech_dian_status = 'not_applicable'
-                if move.insotech_reserved_dian_name:
-                    move.name = move.insotech_reserved_dian_name
-                    move.insotech_reserved_dian_name = False
-                    
-        return super().button_draft()
