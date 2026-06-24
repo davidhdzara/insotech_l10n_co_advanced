@@ -1,6 +1,6 @@
 {
     'name': 'Insotech DIAN Setup Wizard',
-    'version': '19.0.2.1.0',
+    'version': '18.0.2.1.0',
     'category': 'Accounting/Localizations',
     'summary': 'Habilitación DIAN directa — envío de set de pruebas '
                'via SOAP sin configuración previa en Odoo',
